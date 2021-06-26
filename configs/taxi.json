@@ -1,0 +1,9 @@
+{
+	"learning_rate": 0.001,
+	"minibatch_size": 20,
+	"t_max": 200,
+	"train_epochs": 200,
+	"env": "Taxi-v3",
+	"env_name": "taxi",
+	"use_raw_env": "true"
+}

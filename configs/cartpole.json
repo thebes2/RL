@@ -1,0 +1,9 @@
+{
+	"learning_rate": 0.001,
+	"minibatch_size": 20,
+	"t_max": 1000,
+	"train_epochs": 200,
+	"env": "CartPole-v0",
+	"env_name": "cartpole",
+	"use_raw_env": "true"
+}

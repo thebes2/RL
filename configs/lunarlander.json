@@ -1,0 +1,9 @@
+{
+	"learning_rate": 0.001,
+	"minibatch_size": 20,
+	"t_max": 500,
+	"train_epochs": 200,
+	"env": "LunarLander-v2",
+	"env_name": "lunarlander",
+	"use_raw_env": "true"
+}

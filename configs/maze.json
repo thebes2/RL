@@ -1,0 +1,8 @@
+{
+	"learning_rate": 0.001,
+	"minibatch_size": 20,
+	"t_max": 500,
+	"train_epochs": 200,
+	"env": "maze-v0",
+	"env_name": "maze"
+}

@@ -1,0 +1,8 @@
+{
+	"learning_rate": 0.0003,
+	"minibatch_size": 32,
+	"t_max": 500,
+	"train_epochs": 1000,
+	"env": "tetris",
+	"env_name": "tetris"
+}
