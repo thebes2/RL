@@ -1,0 +1,3 @@
+[submodule "pytris-effect"]
+	path = pytris-effect
+	url = https://github.com/gitlinus/pytris-effect.git
