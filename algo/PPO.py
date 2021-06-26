@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from Agent import RL_agent
+from .Agent import RL_agent
 
 
 class PPO_agent(RL_agent):

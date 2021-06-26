@@ -1,4 +1,4 @@
-from Agent import RL_agent
+from .Agent import RL_agent
 
 
 class VPG_agent(RL_agent):
