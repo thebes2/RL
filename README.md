@@ -1,3 +1,5 @@
+## RL Repository
+
 TODO:
 - [x] Move training to EC2 and learn how to use remote jupyter (laptop is dying, do it even if there's no real perf benefit)
 	- [x] Create virtualenv that works with jupyter notebook
