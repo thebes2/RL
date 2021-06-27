@@ -1,4 +1,4 @@
-## RL Repository
+## RL Playground
 
 TODO:
 - [x] Move training to EC2 and learn how to use remote jupyter (laptop is dying, do it even if there's no real perf benefit)
@@ -18,13 +18,18 @@ TODO:
 
     - Now, the bottleneck is get_action in collect_rollout, need to use multithreading to speed it up further
 
-- [ ] Parallelize to utilize more cpu threads when collecting rollouts / gradients
+- [x] Parallelize to utilize more cpu threads when collecting rollouts / gradients
 
-  - [ ] Look into the spinning up implementation (MPI)
+  - [x] Look into the spinning up implementation (MPI)
+  - Takes roughly 35s/epoch when single-threaded, 28s/epoch for two threads, 25s/epoch for four threads
 
-- (Algo) The current agent gets ~10 apples per run
+- (Algo) The current agent gets ~10 apples per run on snake
   - [ ] It's decent, but it's not improving fast enough. The actions are too certain, might be overfitting and decreasing exploration. Add a noise function that decreases in amplitude over time to prevent this
 
 - [ ] Analyze performance of tetris env
   - Runs at ~560 microseconds per step
   - Snake env runs at 460 microseconds, but with far less variation
+
+
+
+Run MPI with 2 threads: `mpiexec -n 2 python -m rl.run_mpi`

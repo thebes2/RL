@@ -5,6 +5,11 @@ import sys
 import os
 from datetime import datetime
 from multiprocessing.pool import ThreadPool
+from mpi4py import MPI
+
+sys.path.insert(0, '..')
+
+from utils.mpi import broadcast_model, average_gradients, mpi_print
 
 
 class RL_agent:
@@ -21,7 +26,8 @@ class RL_agent:
                  threads=1,
                  env_name='',
                  algo_name='',
-                 run_name=None):
+                 run_name=None,
+                 ckpt_folder=None):
 
         self.policy = policy_net
         self.value = value_net
@@ -57,7 +63,10 @@ class RL_agent:
             now = datetime.now()
             self.run_name = "{}-{}-{}".format(env_name, algo_name, now.strftime('%H-%M-%S'))
 
-        self.ckpt_dir = os.path.join('checkpoints', self.run_name)
+        if ckpt_folder is None:
+            self.ckpt_dir = os.path.join('checkpoints', self.run_name)
+        else:
+            self.ckpt_dir = os.path.join(ckpt_folder, self.run_name)
         os.makedirs(self.ckpt_dir, exist_ok=True)
 
         self.ckpt = tf.train.Checkpoint(
@@ -69,6 +78,7 @@ class RL_agent:
         self.ckpt_manager = tf.train.CheckpointManager(
             self.ckpt, directory=self.ckpt_dir, max_to_keep=3
         )
+
 
     def get_policy(self, obs, batch=False):
         obs = obs if batch else np.array([obs])
@@ -99,6 +109,18 @@ class RL_agent:
         policy_grads = policy_tape.gradient(policy_loss, self.policy.trainable_variables)
         self.policy_optimizer.apply_gradients(zip(policy_grads, self.policy.trainable_variables))
 
+    def mpi_update_policy_step(self, obs, act, val, rnk, **kwargs):
+        with tf.GradientTape() as policy_tape:
+            policy_loss = self.compute_policy_loss(obs, act, val, **kwargs)
+        policy_grads = policy_tape.gradient(policy_loss, self.policy.trainable_variables)
+        avg_policy_grads = []
+        for grad in policy_grads:
+            MPI.COMM_WORLD.Barrier()
+            shape = grad.shape
+            grad = average_gradients(grad.numpy().flatten())
+            avg_policy_grads.append(grad.reshape(shape))
+        self.policy_optimizer.apply_gradients(zip(policy_grads, self.policy.trainable_variables))
+
     def compute_value_loss(self, obs, act, val, **kwargs):
         preds = tf.squeeze(self.get_value(obs, batch=True))
         return tf.reduce_mean(tf.square(preds - val))
@@ -107,6 +129,18 @@ class RL_agent:
         with tf.GradientTape() as value_tape:
             value_loss = self.compute_value_loss(obs, act, val, **kwargs)
         value_grads = value_tape.gradient(value_loss, self.value.trainable_variables)
+        self.value_optimizer.apply_gradients(zip(value_grads, self.value.trainable_variables))
+
+    def mpi_update_value_step(self, obs, act, val, rnk, **kwargs):
+        with tf.GradientTape() as value_tape:
+            value_loss = self.compute_value_loss(obs, act, val, **kwargs)
+        value_grads = value_tape.gradient(value_loss, self.value.trainable_variables)
+        avg_value_grads = []
+        for grad in value_grads:
+            MPI.COMM_WORLD.Barrier()
+            shape = grad.shape
+            grad = average_gradients(grad.numpy().flatten())
+            avg_value_grads.append(grad.reshape(shape))
         self.value_optimizer.apply_gradients(zip(value_grads, self.value.trainable_variables))
 
     def preprocess(self, obs):
@@ -150,12 +184,6 @@ class RL_agent:
             i += 1
         if silenced: self.attach_stdout()
         return o, a, r
-    
-    def collect_rollout_parallel(self, n_roll, t_max=10000, policy=None, silenced=True):
-        if silenced: self.detach_stdout()
-        with ThreadPool(self.threads) as pool:
-            raise NotImplementedError
-        if silenced: self.attach_stdout()
 
     def discount_rewards(self, r):
         for i in range(len(r)-1, -1, -1):
@@ -164,10 +192,17 @@ class RL_agent:
 
     @tf.function(experimental_relax_shapes=True)
     def update_network(self, obs, act, val, **kwargs):
-        self.update_policy_step(obs, act, val)
+        self.update_policy_step(obs, act, val, **kwargs)
 
         for _ in range(self.gradient_steps):
-            self.update_value_step(obs, act, val)
+            self.update_value_step(obs, act, val, **kwargs)
+
+    # @tf.function(experimental_relax_shapes=True)
+    def mpi_update_network(self, obs, act, val, rnk, **kwargs):
+        self.mpi_update_policy_step(obs, act, val, rnk, **kwargs)
+
+        for _ in range(self.gradient_steps):
+            self.mpi_update_value_step(obs, act, val, rnk, **kwargs)
 
     def warmup(self, n_roll=1000, t_steps=5, pre_epochs=10, examples=None, t_max=10000):
         """Although VPG is on-policy, we can train on good examples to initialize the policy network"""
@@ -192,7 +227,7 @@ class RL_agent:
         epochs_per_log = 5
         for t in tqdm(range(epochs), desc='Training epochs'):
             obs, act, val = [], [], []
-            for i in range(self.minibatch_size):
+            for _ in range(self.minibatch_size):
                 o, a, v = self.collect_rollout(t_max=t_max, silenced=True)
                 avg_reward += sum(v)
                 v = self.discount_rewards(v)
@@ -201,19 +236,49 @@ class RL_agent:
                 val.extend(v)
 
                 if len(obs) > buf_size:
+                    break
                     self.update_network(
                         tf.constant(obs), tf.constant(act), tf.constant(val)
                     )
                     obs, act, val = [], [], []
-           
+
             if len(obs) > min_buf_size:
                 self.update_network(
                     tf.constant(obs), tf.constant(act), tf.constant(val)
                 )
             if logging and t % epochs_per_log == epochs_per_log-1:
                 avg_reward /= epochs_per_log * self.minibatch_size
-                print("[{}] Average reward: {}".format(t, avg_reward))
+                print("[{}] Average reward: {}".format(t+1, avg_reward))
                 avg_reward = 0
+                self.save_to_checkpoint()
+
+    def mpi_train(self, rnk, epochs=1000, t_max=10000, logging=True, buf_size=20000):
+        broadcast_model(self.policy)
+        broadcast_model(self.value)
+
+        avg_reward = 0.
+        cnt = 0
+        epochs_per_log = 5
+
+        for t in tqdm(range(epochs), desc='Training epochs', disable=(rnk > 0)):
+            obs, act, val = [], [], []
+            while len(obs) < buf_size:
+                o, a, v = self.collect_rollout(t_max=t_max, silenced=True)
+                avg_reward += sum(v)
+                v = self.discount_rewards(v)
+                obs.extend(o)
+                act.extend(a)
+                val.extend(v)
+                cnt += 1
+
+            # start training; first, every thread feeds all states into value
+            self.mpi_update_network(
+                tf.constant(obs), tf.constant(act), tf.constant(val), rnk
+            )
+            if logging and t % epochs_per_log == epochs_per_log - 1 and rnk == 0:
+                avg_reward /= cnt
+                mpi_print("[{}] Average reward: {}".format(t+1, avg_reward))
+                avg_reward, cnt = 0, 0
                 self.save_to_checkpoint()
 
     def load(self, path):
