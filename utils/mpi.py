@@ -4,6 +4,9 @@ import numpy as np
 comm = MPI.COMM_WORLD
 size = comm.Get_size()
 
+def get_size():
+    return size
+
 def send(data, dest=0):
     comm.Send(data, dest=dest)
 

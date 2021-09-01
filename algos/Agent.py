@@ -9,7 +9,7 @@ from mpi4py import MPI
 
 sys.path.insert(0, '..')
 
-from utils.mpi import broadcast_model, average_gradients, mpi_print
+from utils.mpi import get_size, broadcast_model, average_gradients, mpi_print
 
 
 class RL_agent:
@@ -205,7 +205,7 @@ class RL_agent:
             self.mpi_update_value_step(obs, act, val, rnk, **kwargs)
 
     def warmup(self, n_roll=1000, t_steps=5, pre_epochs=10, examples=None, t_max=10000):
-        """Although VPG is on-policy, we can train on good examples to initialize the policy network"""
+        """Although these algos are on-policy, we can train on good examples to initialize the policy network"""
         self.train(pre_epochs, t_max, logging=False)
         obs, act, val = [], [], []
         if examples:
@@ -254,6 +254,7 @@ class RL_agent:
     def mpi_train(self, rnk, epochs=1000, t_max=10000, logging=True, buf_size=20000):
         broadcast_model(self.policy)
         broadcast_model(self.value)
+        buf_size = buf_size // get_size() + (1 if buf_size % get_size() > 0 else 0)
 
         avg_reward = 0.
         cnt = 0

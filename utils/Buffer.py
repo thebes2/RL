@@ -18,7 +18,15 @@ class ReplayBuffer:
     def sample(self, num_samples=None):
         if num_samples is None:
             num_samples = self.num_samples
+        if num_samples > self.size():
+            num_samples = self.size()
         if self.mode == 'uniform':
-            return np.random.choice(self.queue, size=num_samples, replace=False)
+            idxs = np.random.choice(len(self.queue), size=num_samples, replace=False)
+            return list(map(lambda x: self.queue[x], idxs))
         else:
             raise NotImplementedError()
+
+    def size(self):
+        if self.mode == 'uniform':
+            return len(self.queue)
+        raise NotImplementedError()

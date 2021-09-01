@@ -1,8 +1,9 @@
 {
-	"learning_rate": 0.001,
-	"minibatch_size": 32,
+	"learning_rate": 0.0005,
+	"minibatch_size": 50,
 	"t_max": 1000,
 	"train_epochs": 3000,
+	"buf_size": 10000,
 	"env": "gym_snake:snake-v0",
 	"env_name": "snake"
 }
