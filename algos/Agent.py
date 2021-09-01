@@ -236,15 +236,14 @@ class RL_agent:
                 val.extend(v)
 
                 if len(obs) > buf_size:
-                    break
                     self.update_network(
-                        tf.constant(obs), tf.constant(act), tf.constant(val)
+                        tf.constant(obs), tf.constant(act), tf.constant(val, dtype=tf.float32)
                     )
                     obs, act, val = [], [], []
 
             if len(obs) > min_buf_size:
                 self.update_network(
-                    tf.constant(obs), tf.constant(act), tf.constant(val)
+                    tf.constant(obs), tf.constant(act), tf.constant(val, dtype=tf.float32)
                 )
             if logging and t % epochs_per_log == epochs_per_log-1:
                 avg_reward /= epochs_per_log * self.minibatch_size
@@ -271,7 +270,6 @@ class RL_agent:
                 val.extend(v)
                 cnt += 1
 
-            # start training; first, every thread feeds all states into value
             self.mpi_update_network(
                 tf.constant(obs), tf.constant(act), tf.constant(val), rnk
             )
@@ -280,6 +278,7 @@ class RL_agent:
                 mpi_print("[{}] Average reward: {}".format(t+1, avg_reward))
                 avg_reward, cnt = 0, 0
                 self.save_to_checkpoint()
+            sys.stdout.flush()
 
     def load(self, path):
         policy_path = os.path.join(path, 'policy.h5')
