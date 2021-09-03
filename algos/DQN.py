@@ -15,15 +15,18 @@ class DQN_agent:
                  env=None,
                  mode='DQN',
                  learning_rate=0.001,
-                 batch_size=100,
+                 batch_size=128,
                  update_steps=5,
-                 beta=0.05,
+                 multistep=1,
+                 beta=0.005,
                  epsilon=0.1,
                  gamma=0.99,
                  env_name='',
                  algo_name='',
                  run_name=None,
-                 ckpt_folder=None):
+                 ckpt_folder=None,
+                 **kwargs): # update workflow to pass config as dct to agent
+                 # use kwargs to catch unrelated cfgs
         self.model = model
         self.buffer = buffer
         self.env = env
@@ -35,6 +38,7 @@ class DQN_agent:
         self.lr = learning_rate
         self.batch_size = batch_size
         self.update_steps = update_steps
+        self.multistep = multistep
         self.beta = beta
         self.epsilon = epsilon
         self.gamma = gamma
@@ -90,7 +94,7 @@ class DQN_agent:
                 return np.expand_dims(np.random.choice(a, size=n), 1)
             else:
                 return np.expand_dims(np.argmax(q, axis=1), 1)
-        raise NotImplementedException("Cannot sample directly from Q-values, maybe treat them as logits later?")
+        raise NotImplementedError("Cannot sample directly from Q-values, maybe treat them as logits later?")
         return tf.random.categorical(tf.math.log(q), 1).numpy()
 
     def preprocess(self, obs):
@@ -121,19 +125,39 @@ class DQN_agent:
         dn = False
         i = 0
         reward = 0
+        g = 1.0
+        rt = 0
+        queue = []
         while i != t_max:
             act = self.get_action(obs)[0][0] if policy is None else policy(obs)
             oo, rr, dn, info = self.env.step(self.action_wrapper(act))
+            rt += g * rr
             oo = self.preprocess(oo)
-            self.buffer.add((obs, act, rr, 0.0 if dn else self.gamma, oo))
+            queue.append((obs, act, rr))
+            # switch to using multistep returns
+            # self.buffer.add((obs, act, rr, 0.0 if dn else self.gamma, oo))
             reward += rr
             obs = oo
 
-            if train:
+            if len(queue) >= self.multistep:
+                self.buffer.add((queue[0][0], queue[0][1], rt, 0.0 if dn else g * self.gamma, oo))
+                rt -= queue[0][2]
+                rt /= self.gamma
+                del queue[0]
+            else:
+                g *= self.gamma
+
+            if train and self.buffer.size() > 0:
                 for _ in range(self.update_steps):
                     self.update_model_step()
 
             if dn:
+                # clean up incomplete transitions in the queue
+                while len(queue) > 0:
+                    self.buffer.add((queue[0][0], queue[0][1], rt, 0.0, oo))
+                    rt /= self.gamma
+                    rt -= queue[0][2]
+                    del queue[0]
                 break
             i += 1
         if silenced: self.attach_stdout()
@@ -202,14 +226,13 @@ class DQN_agent:
         avg_reward = 0.
         epochs_per_log = 5
         for t in tqdm(range(epochs), desc='Training epochs'):
-            avg_reward += self.collect_rollout(t_max=t_max, silenced=True, train=True)
-            # self.update_network(self.update_steps)
-            # self.update_target_step()
+            avg_reward += self.collect_rollout(t_max=t_max, silenced=False, train=True)
 
             if logging and t % epochs_per_log == epochs_per_log-1:
                 avg_reward /= epochs_per_log
                 print("[{}] Average reward: {}".format(t+1, avg_reward))
                 print("Predicted reward: {}".format(self.get_model(self.preprocess(self.env.reset()))))
+                print("Buffer size: {}".format(self.buffer.size()))
                 avg_reward = 0
                 self.save_to_checkpoint()
 

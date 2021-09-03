@@ -13,7 +13,7 @@ def get_policy_architecture(env_name, algo='PPO'):
             tf.keras.Input(shape=(2,)),
             tf.keras.layers.Dense(16, activation='relu'),
             tf.keras.layers.Dense(16, activation='relu'),
-            tf.keras.layers.Dense(3, activation='softmax')
+            tf.keras.layers.Dense(3, activation='softmax' if algo == 'PPO' else None)
         ])
     elif env_name == "Acrobot-v1":
         model = tf.keras.Sequential([
@@ -23,16 +23,18 @@ def get_policy_architecture(env_name, algo='PPO'):
             tf.keras.layers.Dense(16, activation='relu'),
             tf.keras.layers.Dense(3, activation='softmax')
         ])
+        if algo != 'PPO':
+            raise NotImplementedError("No architecture for {} yet".format(algo))
     elif env_name == "gym_snake:snake-v0":
         model = tf.keras.Sequential([
             tf.keras.Input(shape=(15, 15, 3)),
             tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
-            #tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
+            tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
             tf.keras.layers.Flatten(),
             tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dense(64, activation='relu'),
-            #tf.keras.layers.Dense(32, activation='relu'),
-            tf.keras.layers.Dense(4, activation='softmax')
+            tf.keras.layers.Dense(32, activation='relu'),
+            tf.keras.layers.Dense(4, activation='softmax' if algo == 'PPO' else None)
         ])
     elif env_name == "tetris":  # the final raid boss
         model = tf.keras.Sequential([
@@ -46,6 +48,8 @@ def get_policy_architecture(env_name, algo='PPO'):
             tf.keras.layers.Dense(64, activation='elu'),
             tf.keras.layers.Dense(7, activation='softmax') # NO-OP is an action
         ])
+        if algo != 'PPO':
+            raise NotImplementedError("No architecture for {} yet".format(algo))
     return model
 
 def get_value_architecture(env_name):

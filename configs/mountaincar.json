@@ -1,0 +1,11 @@
+{
+	"learning_rate": 0.01,
+	"minibatch_size": 32,
+	"batch_size": 64,
+	"t_max": 1000,
+	"train_epochs": 1000,
+	"buf_size": 10000,
+	"env": "MountainCar-v0",
+	"env_name": "mountaincar",
+    "use_raw_env": true
+}
