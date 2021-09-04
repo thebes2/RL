@@ -21,10 +21,8 @@ def get_policy_architecture(env_name, algo='PPO'):
             tf.keras.layers.Dense(32, activation='relu'),
             tf.keras.layers.Dense(48, activation='relu'),
             tf.keras.layers.Dense(16, activation='relu'),
-            tf.keras.layers.Dense(3, activation='softmax')
+            tf.keras.layers.Dense(3, activation='softmax' if algo == 'PPO' else None)
         ])
-        if algo != 'PPO':
-            raise NotImplementedError("No architecture for {} yet".format(algo))
     elif env_name == "gym_snake:snake-v0":
         model = tf.keras.Sequential([
             tf.keras.Input(shape=(15, 15, 3)),

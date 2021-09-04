@@ -13,12 +13,14 @@ class DQN_agent:
                  buffer,
                  target=None,
                  env=None,
-                 mode='DQN',
+                 mode=('DQN'),
                  learning_rate=0.001,
                  batch_size=128,
                  update_steps=5,
                  multistep=1,
-                 beta=0.005,
+                 alpha=1.0,
+                 beta=1.0,
+                 delta=0.005,
                  epsilon=0.1,
                  gamma=0.99,
                  env_name='',
@@ -39,7 +41,9 @@ class DQN_agent:
         self.batch_size = batch_size
         self.update_steps = update_steps
         self.multistep = multistep
+        self.alpha = alpha
         self.beta = beta
+        self.delta = delta
         self.epsilon = epsilon
         self.gamma = gamma
     
@@ -68,6 +72,10 @@ class DQN_agent:
         )
 
         self.update_counter = 0
+
+        self.double_DQN = ('DDQN' in self.mode)
+        self.prioritized_sampling = ('PER' in self.mode)
+        self.noisy_DQN = ('noisy' in self.mode)
 
     def get_model(self, obs, batch=False):
         # in Q-learning, the model predicts Q-values rather than probabilities
@@ -119,18 +127,23 @@ class DQN_agent:
     def attach_stdout(self):
         sys.stdout = self._stdout
 
-    def collect_rollout(self, t_max=10000, policy=None, silenced=True, train=False):
+    def collect_rollout(self, t_max=10000, policy=None, silenced=True, train=False, display=False):
         if silenced: self.detach_stdout()
         obs = self.preprocess(self.env.reset())
+        if display: self.env.render()
         dn = False
         i = 0
         reward = 0
         g = 1.0
         rt = 0
         queue = []
+        action_mode = 'greedy' if self.noisy_DQN else 'eps-greedy'
         while i != t_max:
-            act = self.get_action(obs)[0][0] if policy is None else policy(obs)
+            act = self.get_action(obs, mode=action_mode)[0][0] if policy is None else policy(obs)
             oo, rr, dn, info = self.env.step(self.action_wrapper(act))
+            if display:
+                print(self.get_model(obs)) 
+                self.env.render()
             rt += g * rr
             oo = self.preprocess(oo)
             queue.append((obs, act, rr))
@@ -147,7 +160,8 @@ class DQN_agent:
             else:
                 g *= self.gamma
 
-            if train and self.buffer.size() > 0:
+            # (TODO): arbitrarily chosen for now
+            if train and self.buffer.size() > self.batch_size:
                 for _ in range(self.update_steps):
                     self.update_model_step()
 
@@ -178,8 +192,8 @@ class DQN_agent:
             ss.append(sample[4])
         return np.array(s), np.array(a), np.array(r), np.array(p), np.array(ss)
 
-    def compute_model_loss(self, s, a, r, p, ss):
-        if 'DDQN' in self.mode:
+    def compute_model_loss(self, s, a, r, p, ss, w=None):
+        if self.double_DQN:
             idxs = np.argmax(self.get_model(ss, batch=True), axis=1)
             q = self.get_target(ss, batch=True)
             idx = tf.one_hot(idxs, tf.shape(q)[1])
@@ -191,28 +205,43 @@ class DQN_agent:
         preds = self.get_model(s, batch=True)
         a = tf.one_hot(a, tf.shape(preds)[1])
         q_pred = tf.reduce_sum(tf.multiply(preds, a), axis=1)
-        loss = tf.reduce_mean(tf.square(q_pred - y))
-        return loss
+        delta = q_pred - y
+        losses = tf.square(delta)
+        if self.prioritized_sampling:
+            losses = losses * w
+        loss = tf.reduce_mean(losses)
+        return (loss, tf.abs(delta)) if self.prioritized_sampling else loss
 
     def update_model_step(self):
-        s, a, r, p, ss = self.unpack(self.buffer.sample(self.batch_size))
-        with tf.GradientTape() as tape:
-            model_loss = self.compute_model_loss(
-                s, a, tf.constant(r, dtype=tf.float32),
-                tf.constant(p, dtype=tf.float32), ss
-            )
-        model_grads = tape.gradient(model_loss, self.model.trainable_variables)
-        self.optimizer.apply_gradients(zip(model_grads, self.model.trainable_variables))
-        self.update_counter += 1
-        if self.update_counter == 100:
-            self.update_counter = 0
-            self.update_target_step()
+        if self.prioritized_sampling:
+            idxs, w, samples = self.buffer.sample(self.batch_size)
+            s, a, r, p, ss = self.unpack(samples)
+            with tf.GradientTape() as tape:
+                model_loss, delta = self.compute_model_loss(
+                    s, a, tf.constant(r, dtype=tf.float32),
+                    tf.constant(p, dtype=tf.float32), ss, w
+                )
+            model_grads = tape.gradient(model_loss, self.model.trainable_variables)
+            self.optimizer.apply_gradients(zip(model_grads, self.model.trainable_variables))
+            delta = np.power(delta.numpy(), self.alpha)
+            self.buffer.refresh_priority(idxs, delta)
+        else:
+            s, a, r, p, ss = self.unpack(self.buffer.sample(self.batch_size))
+            with tf.GradientTape() as tape:
+                model_loss = self.compute_model_loss(
+                    s, a, tf.constant(r, dtype=tf.float32),
+                    tf.constant(p, dtype=tf.float32), ss
+                )
+            model_grads = tape.gradient(model_loss, self.model.trainable_variables)
+            self.optimizer.apply_gradients(zip(model_grads, self.model.trainable_variables))
+
+        self.update_target_step()
 
     def update_target_step(self):
         model_weights = self.model.get_weights()
         target_weights = self.target.get_weights()
         self.target.set_weights(list(map(
-            lambda x: self.beta * x[0] + (1.0 - self.beta) * x[1],
+            lambda x: self.delta * x[0] + (1.0 - self.delta) * x[1],
             zip(model_weights, target_weights)
         )))
 
@@ -222,11 +251,11 @@ class DQN_agent:
             self.update_model_step()
         self.update_target_step()
 
-    def train(self, epochs=1000, t_max=10000, logging=True):
+    def train(self, epochs=1000, t_max=10000, logging=True, display=False):
         avg_reward = 0.
         epochs_per_log = 5
         for t in tqdm(range(epochs), desc='Training epochs'):
-            avg_reward += self.collect_rollout(t_max=t_max, silenced=False, train=True)
+            avg_reward += self.collect_rollout(t_max=t_max, silenced=False, train=True, display=display)
 
             if logging and t % epochs_per_log == epochs_per_log-1:
                 avg_reward /= epochs_per_log
