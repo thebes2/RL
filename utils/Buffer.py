@@ -5,7 +5,7 @@ class SegmentTree:
     def __init__(self, N):
         self.N = N
         # each node stores sum and max of range
-        self.seg = [(0,0, 0,0)] * 4 * N
+        self.seg = [(0, 0, 0)] * 4 * N # avoid division by 0
 
     def get_sum(self):
         return self.seg[1][0]
@@ -21,10 +21,11 @@ class SegmentTree:
                 self.upd(2*i, s, (s+e)//2, idx, val)
             self.seg[i] = (
                 self.seg[2*i][0] + self.seg[2*i+1][0],
-                max(self.seg[2*i][1], self.seg[2*i+1][1])
+                max(self.seg[2*i][1], self.seg[2*i+1][1]),
+                min(self.seg[2*i][2], self.seg[2*i+1][2])
             )
         else:
-            self.seg[i] = (val, val)
+            self.seg[i] = (val, val, val)
 
     def update(self, idx, val):
         self.upd(1, 0, self.N-1, idx, val)
@@ -50,6 +51,22 @@ class SegmentTree:
 
     def get(self, idx):
         return self.qu2(1, 0, self.N-1, idx)
+
+    def qu3(self, i, s, e, ss, se):
+        if s >= ss and e <= se:
+            return self.seg[i][2]
+        elif (s+e)/2 < ss:
+            return self.qu3(2*i+1, (s+e)//2+1, e, ss, se)
+        elif (s+e)/2 >= se:
+            return self.qu3(2*i, s, (s+e)//2, ss, se)
+        else:
+            return min(
+                self.qu3(2*i+1, (s+e)//2+1, e, ss, se),
+                self.qu3(2*i, s, (s+e)//2, ss, se)
+            )
+
+    def get_min(self, n):
+        return self.qu3(1, 0, self.N-1, 0, n-1)
 
 
 class ReplayBuffer:
@@ -77,7 +94,7 @@ class ReplayBuffer:
             self.seg = SegmentTree(self.max_size)
             # (TODO): Add callback for annealing beta to 1.0 from beta_0
             self.beta = beta
-            self.seg.update(0, 1e-4) # avoid divide by zero
+            self.seg.update(0, 1e-1)
         else:
             raise NotImplementedError()
 
@@ -111,8 +128,8 @@ class ReplayBuffer:
             # return IS weights for each sample as well
             probs = np.array(list(map(lambda x: self.seg.get(x), idxs)))
             weights = np.power(self.seg.get_sum() * np.reciprocal(probs) / self.size(), self.beta)
-            maxw = np.power(self.seg.get_sum() / self.seg.get_max() / self.size(), self.beta)
-            weights = weights / maxw
+            maxw = np.power(self.seg.get_sum() / self.seg.get_min(self.size()) / self.size(), self.beta)
+            # weights = weights / maxw
             return idxs, weights, list(map(lambda x: self.arr[x], idxs))
         else:
             raise NotImplementedError()

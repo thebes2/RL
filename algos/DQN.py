@@ -47,7 +47,10 @@ class DQN_agent:
         self.epsilon = epsilon
         self.gamma = gamma
     
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+        self.optimizer = tf.keras.optimizers.Adam(
+            learning_rate=learning_rate,
+            clipnorm=1.0
+        )
 
         self.env_name = env_name
         self.algo_name = algo_name
@@ -106,12 +109,14 @@ class DQN_agent:
         return tf.random.categorical(tf.math.log(q), 1).numpy()
 
     def preprocess(self, obs):
-        if self.env_name == 'snake':
-            return np.array(obs.astype(np.float32)[::10,::10]/255.0)
+        if self.env_name == 'snake': # subtract background colour
+            return np.array(obs.astype(np.float32)[::10,::10]/255.0)-np.array([0.0,1.0,0.0])
         elif self.env_name == 'tetris':
             return np.array(obs.astype(np.float32)/255.0)
         elif self.env_name == 'taxi':
             return np.array([obs])
+        #elif self.env_name == 'breakout':
+        #    return np.array(obs.astype(np.float32)[::5,::5]/127.0-1.0)
         return obs
 
     def action_wrapper(self, action):
@@ -142,7 +147,7 @@ class DQN_agent:
             act = self.get_action(obs, mode=action_mode)[0][0] if policy is None else policy(obs)
             oo, rr, dn, info = self.env.step(self.action_wrapper(act))
             if display:
-                print(self.get_model(obs)) 
+                # print(self.get_model(obs)) 
                 self.env.render()
             rt += g * rr
             oo = self.preprocess(oo)
@@ -161,7 +166,7 @@ class DQN_agent:
                 g *= self.gamma
 
             # (TODO): arbitrarily chosen for now
-            if train and self.buffer.size() > self.batch_size:
+            if train and self.buffer.size() > 2*self.batch_size:
                 for _ in range(self.update_steps):
                     self.update_model_step()
 
@@ -185,6 +190,8 @@ class DQN_agent:
     def unpack(self, samples):
         s, a, r, p, ss = [], [], [], [], []
         for sample in samples:
+            if sample is None:
+                print(sample)
             s.append(sample[0])
             a.append(sample[1])
             r.append(sample[2])
@@ -197,11 +204,11 @@ class DQN_agent:
             idxs = np.argmax(self.get_model(ss, batch=True), axis=1)
             q = self.get_target(ss, batch=True)
             idx = tf.one_hot(idxs, tf.shape(q)[1])
-            y = tf.reduce_sum(tf.math.multiply(q, idx), axis=1)
+            yy = tf.reduce_sum(tf.math.multiply(q, idx), axis=1)
         else:
             q = self.get_target(ss, batch=True)
-            y = np.max(q, axis=1)
-        y = r + tf.multiply(p, y)
+            yy = np.max(q, axis=1)
+        y = r + tf.multiply(p, yy)
         preds = self.get_model(s, batch=True)
         a = tf.one_hot(a, tf.shape(preds)[1])
         q_pred = tf.reduce_sum(tf.multiply(preds, a), axis=1)
@@ -210,11 +217,22 @@ class DQN_agent:
         if self.prioritized_sampling:
             losses = losses * w
         loss = tf.reduce_mean(losses)
+        # print("\n\n", q_pred, y, loss)
+        if self.update_counter % 25 == 0:
+            #if tf.math.reduce_max(r) > 0:
+            #    print("\n\n\n")
+            #    print(q_pred, r, yy)
+            # print(tf.reduce_mean(tf.square(delta)))
+            pass
         return (loss, tf.abs(delta)) if self.prioritized_sampling else loss
 
     def update_model_step(self):
+        self.update_counter += 1
         if self.prioritized_sampling:
-            idxs, w, samples = self.buffer.sample(self.batch_size)
+            idxs, w, samples = self.buffer.sample(
+                self.batch_size #if self.update_counter % 1000 == 0
+                #else self.batch_size
+            )
             s, a, r, p, ss = self.unpack(samples)
             with tf.GradientTape() as tape:
                 model_loss, delta = self.compute_model_loss(
@@ -222,7 +240,8 @@ class DQN_agent:
                     tf.constant(p, dtype=tf.float32), ss, w
                 )
             model_grads = tape.gradient(model_loss, self.model.trainable_variables)
-            self.optimizer.apply_gradients(zip(model_grads, self.model.trainable_variables))
+            clipped_grads = [tf.clip_by_value(grad, -1.0, 1.0) for grad in model_grads]
+            self.optimizer.apply_gradients(zip(clipped_grads, self.model.trainable_variables))
             delta = np.power(delta.numpy(), self.alpha)
             self.buffer.refresh_priority(idxs, delta)
         else:
@@ -233,7 +252,8 @@ class DQN_agent:
                     tf.constant(p, dtype=tf.float32), ss
                 )
             model_grads = tape.gradient(model_loss, self.model.trainable_variables)
-            self.optimizer.apply_gradients(zip(model_grads, self.model.trainable_variables))
+            clipped_grads = [tf.clip_by_value(grad, -1.0, 1.0) for grad in model_grads]
+            self.optimizer.apply_gradients(zip(clipped_grads, self.model.trainable_variables))
 
         self.update_target_step()
 
@@ -254,8 +274,11 @@ class DQN_agent:
     def train(self, epochs=1000, t_max=10000, logging=True, display=False):
         avg_reward = 0.
         epochs_per_log = 5
+        hist = []
         for t in tqdm(range(epochs), desc='Training epochs'):
-            avg_reward += self.collect_rollout(t_max=t_max, silenced=False, train=True, display=display)
+            reward = self.collect_rollout(t_max=t_max, silenced=False, train=True, display=display)
+            avg_reward += reward
+            hist.append(reward)
 
             if logging and t % epochs_per_log == epochs_per_log-1:
                 avg_reward /= epochs_per_log
@@ -264,6 +287,8 @@ class DQN_agent:
                 print("Buffer size: {}".format(self.buffer.size()))
                 avg_reward = 0
                 self.save_to_checkpoint()
+        
+        return hist
 
     def load(self, path):
         model_path = os.path.join(path, 'model.h5')

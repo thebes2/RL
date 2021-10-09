@@ -4,3 +4,5 @@ venv
 checkpoints
 .ipynb_checkpoints
 logs.txt
+*ROMS*
+

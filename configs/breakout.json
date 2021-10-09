@@ -1,0 +1,11 @@
+{
+	"learning_rate": 0.0003,
+	"minibatch_size": 50,
+	"batch_size": 128,
+	"t_max": 1000,
+	"train_epochs": 3000,
+	"buf_size": 10000,
+    "max_buf_size": 10000,
+	"env": "Breakout-v0",
+	"env_name": "breakout"
+}

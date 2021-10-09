@@ -165,15 +165,19 @@ class RL_agent:
     def attach_stdout(self):
         sys.stdout = self._stdout
 
-    def collect_rollout(self, t_max=10000, policy=None, silenced=True):
+    def collect_rollout(self, t_max=10000, policy=None, silenced=True, display=False):
         if silenced: self.detach_stdout()
         obs = self.preprocess(self.env.reset())
+        if display:
+            self.env.render()
         o, a, r = [], [], []
         dn = False
         i = 0
         while i != t_max:
             act = self.get_action(obs)[0][0] if policy is None else policy(obs)
             oo, rr, dn, info = self.env.step(self.action_wrapper(act))
+            if display:
+                self.env.render()
             o.append(obs)
             a.append(act)
             r.append(rr)
@@ -222,13 +226,13 @@ class RL_agent:
         for i in range(t_steps):
             self.update_policy(obs, act, val)
 
-    def train(self, epochs=1000, t_max=10000, logging=True, buf_size=10000, min_buf_size=1000):
+    def train(self, epochs=1000, t_max=10000, logging=True, buf_size=10000, min_buf_size=1000, display=False):
         avg_reward = 0.
         epochs_per_log = 5
         for t in tqdm(range(epochs), desc='Training epochs'):
             obs, act, val = [], [], []
             for _ in range(self.minibatch_size):
-                o, a, v = self.collect_rollout(t_max=t_max, silenced=True)
+                o, a, v = self.collect_rollout(t_max=t_max, silenced=True, display=display)
                 avg_reward += sum(v)
                 v = self.discount_rewards(v)
                 obs.extend(o)
