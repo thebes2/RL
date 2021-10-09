@@ -17,6 +17,7 @@ class DQN_agent:
                  learning_rate=0.001,
                  batch_size=128,
                  update_steps=5,
+                 update_freq=4,
                  multistep=1,
                  alpha=1.0,
                  beta=1.0,
@@ -40,6 +41,7 @@ class DQN_agent:
         self.lr = learning_rate
         self.batch_size = batch_size
         self.update_steps = update_steps
+        self.update_freq = update_freq
         self.multistep = multistep
         self.alpha = alpha
         self.beta = beta
@@ -166,7 +168,7 @@ class DQN_agent:
                 g *= self.gamma
 
             # (TODO): arbitrarily chosen for now
-            if train and self.buffer.size() > 2*self.batch_size:
+            if train and self.buffer.size() > 2*self.batch_size and (i+1) % self.update_freq == 0:
                 for _ in range(self.update_steps):
                     self.update_model_step()
 

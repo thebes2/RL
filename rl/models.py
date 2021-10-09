@@ -36,7 +36,8 @@ def get_policy_architecture(env_name, algo='PPO'):
     elif env_name == "gym_snake:snake-v0":
         if 'Dueling' in algo:
             inp = tf.keras.Input(shape=(15, 15, 3,))
-            conv1 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(inp)
+            ft = tf.keras.layers.Conv2D(3, (1,1), activation=None)(inp)
+            conv1 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(ft)
             conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv1)
             features = tf.keras.layers.Flatten()(conv2)
             hidden1 = tf.keras.layers.Dense(512, activation='relu')(features)

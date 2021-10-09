@@ -128,8 +128,9 @@ class ReplayBuffer:
             # return IS weights for each sample as well
             probs = np.array(list(map(lambda x: self.seg.get(x), idxs)))
             weights = np.power(self.seg.get_sum() * np.reciprocal(probs) / self.size(), self.beta)
-            maxw = np.power(self.seg.get_sum() / self.seg.get_min(self.size()) / self.size(), self.beta)
-            # weights = weights / maxw
+            # maxw = np.power(self.seg.get_sum() / self.seg.get_min(self.size()) / self.size(), self.beta)
+            maxw = np.max(weights)
+            weights = weights / maxw            
             return idxs, weights, list(map(lambda x: self.arr[x], idxs))
         else:
             raise NotImplementedError()
