@@ -18,6 +18,7 @@ class DQN_agent:
                  batch_size=128,
                  update_steps=5,
                  update_freq=4,
+                 target_delay=500,
                  multistep=1,
                  alpha=1.0,
                  beta=1.0,
@@ -42,6 +43,7 @@ class DQN_agent:
         self.batch_size = batch_size
         self.update_steps = update_steps
         self.update_freq = update_freq
+        self.target_delay = target_delay
         self.multistep = multistep
         self.alpha = alpha
         self.beta = beta
@@ -81,6 +83,9 @@ class DQN_agent:
         self.double_DQN = ('DDQN' in self.mode)
         self.prioritized_sampling = ('PER' in self.mode)
         self.noisy_DQN = ('noisy' in self.mode)
+
+    def set_model(self, model):
+        self.model = model
 
     def get_model(self, obs, batch=False):
         # in Q-learning, the model predicts Q-values rather than probabilities
@@ -260,12 +265,13 @@ class DQN_agent:
         self.update_target_step()
 
     def update_target_step(self):
-        model_weights = self.model.get_weights()
-        target_weights = self.target.get_weights()
-        self.target.set_weights(list(map(
-            lambda x: self.delta * x[0] + (1.0 - self.delta) * x[1],
-            zip(model_weights, target_weights)
-        )))
+        if (self.update_counter+1) % self.target_delay == 0:
+            model_weights = self.model.get_weights()
+            target_weights = self.target.get_weights()
+            self.target.set_weights(list(map(
+                lambda x: self.delta * x[0] + (1.0 - self.delta) * x[1],
+                zip(model_weights, target_weights)
+            )))
 
     # @tf.function(experimental_relax_shapes=True)
     def update_network(self, steps):

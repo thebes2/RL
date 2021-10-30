@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-def get_policy_architecture(env_name, algo='PPO'):
+def get_policy_architecture(env_name, algo='PPO', pretrain=None):
     if env_name == "CartPole-v0":
         if 'Dueling' in algo:
             inp = tf.keras.Input(shape=(4,))
@@ -36,27 +36,35 @@ def get_policy_architecture(env_name, algo='PPO'):
     elif env_name == "gym_snake:snake-v0":
         if 'Dueling' in algo:
             inp = tf.keras.Input(shape=(15, 15, 3,))
-            ft = tf.keras.layers.Conv2D(3, (1,1), activation=None)(inp)
-            conv1 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(ft)
-            conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv1)
-            features = tf.keras.layers.Flatten()(conv2)
-            hidden1 = tf.keras.layers.Dense(512, activation='relu')(features)
-            hidden2 = tf.keras.layers.Dense(64, activation='relu')(hidden1)
+            if pretrain is None:
+                inp2 = tf.keras.Input(shape=(15, 15, 3,))
+                ft = tf.keras.layers.Conv2D(4, (1,1), activation=None)(inp2)
+                conv1 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(ft)
+                conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv1)
+                features = tf.keras.layers.Flatten()(conv2)
+                hidden1 = tf.keras.layers.Dense(512, activation='relu')(features)
+                pretrain = tf.keras.Model(inputs=inp2, outputs=hidden1, name="vision")
+            h1 = pretrain(inp)
+            hidden2 = tf.keras.layers.Dense(64, activation='relu')(h1)
             val = tf.keras.layers.Dense(1, activation='linear')(hidden2)
             adv = tf.keras.layers.Dense(4, activation='linear')(hidden2)
             avg = tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, 1))(adv)
             out = tf.keras.layers.Add()([val, adv, -avg])
             model = tf.keras.Model(inputs=inp, outputs=out, name="dueling-DQN")
         else:
-            model = tf.keras.Sequential([
-                tf.keras.Input(shape=(15, 15, 3)),
-                tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
-                tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
-                tf.keras.layers.Flatten(),
-                tf.keras.layers.Dense(512, activation='relu'),
-                tf.keras.layers.Dense(64, activation='relu'),
-                tf.keras.layers.Dense(4, activation='softmax' if 'PPO' in algo else None)
-            ])
+            inp = tf.keras.Input(shape=(15, 15, 3))
+            if pretrain is None:
+                inp2 = tf.keras.Input(shape=(15, 15, 3,))
+                ft = tf.keras.layers.Conv2D(4, (1,1), activation=None)(inp2)
+                conv1 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(ft)
+                conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv1)
+                features = tf.keras.layers.Flatten()(conv2)
+                hidden1 = tf.keras.layers.Dense(512, activation='relu')(features)
+                pretrain = tf.keras.Model(inputs=inp2, outputs=hidden1, name="vision")
+            h1 = pretrain(inp)
+            h2 = tf.keras.layers.Dense(64, activation='relu')(h1)
+            out = tf.keras.layers.Dense(4, activation='softmax' if 'PPO' in algo else None)(h2)
+            model = tf.keras.Model(inputs=inp, outputs=out, name=str(algo))
     elif env_name == "tetris":  # the final raid boss
         model = tf.keras.Sequential([
             tf.keras.Input(shape=(20,10,3)),
@@ -163,3 +171,18 @@ def get_value_architecture(env_name):
             tf.keras.layers.Dense(1, activation=None)
         ])
     return value
+
+
+def get_vision_architecture(env_name):
+
+    if env_name == 'gym_snake:snake-v0':
+        inp = tf.keras.Input(shape=(15, 15, 3,))
+        ft = tf.keras.layers.Conv2D(4, (1,1), activation=None)(inp)
+        conv1 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(ft)
+        conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv1)
+        features = tf.keras.layers.Flatten()(conv2)
+        fc1 = tf.keras.layers.Dense(512, activation='relu')(features)
+        out = tf.keras.layers.Dense(16, activation=None)(fc1)
+        model = tf.keras.Model(inputs=inp, outputs=out, name="embed")
+    
+    return model
