@@ -6,5 +6,9 @@
 	"train_epochs": 200,
 	"env": "CartPole-v0",
 	"env_name": "cartpole",
-	"use_raw_env": "true"
+	"use_raw_env": "true",
+	"target_delay": 1,
+	"multistep": 10,
+	"update_freq": 1,
+	"algo": ["DDQN"]
 }

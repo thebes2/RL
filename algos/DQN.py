@@ -6,31 +6,89 @@ from datetime import datetime
 from tqdm.auto import tqdm
 import numpy as np
 
+from rl.models import get_policy_architecture
+from utils.Buffer import ReplayBuffer
+from utils.Env import get_env
+
 class DQN_agent:
 
-    def __init__(self, 
-                 model,
-                 buffer,
-                 target=None,
-                 env=None,
-                 mode=('DQN'),
-                 learning_rate=0.001,
-                 batch_size=128,
-                 update_steps=5,
-                 update_freq=4,
-                 target_delay=500,
-                 multistep=1,
-                 alpha=1.0,
-                 beta=1.0,
-                 delta=0.005,
-                 epsilon=0.1,
-                 gamma=0.99,
-                 env_name='',
-                 algo_name='',
-                 run_name=None,
-                 ckpt_folder=None,
-                 **kwargs): # update workflow to pass config as dct to agent
-                 # use kwargs to catch unrelated cfgs
+    def __init__(self, config):
+        self.model = get_policy_architecture(config['env'], algo=config['algo'])
+        self.buffer = ReplayBuffer(
+            config.get('max_buf_size', 20000),
+            mode = 'proportional' if 'PER' in config['algo'] else 'uniform'
+        )
+        self.env = get_env(config['env'])
+        self.target = tf.keras.models.clone_model(self.model)
+        self.mode = config['algo']
+
+        self._stdout = sys.stdout
+
+        self.learning_rate = config.get('learning_rate', 0.001)
+        self.batch_size = config.get('batch_size', 64)
+        self.update_steps = config.get('update_steps', 5)
+        self.update_freq = config.get('update_freq', 4)
+        self.target_delay = config.get('target_delay', 500)
+        self.multistep = config.get('multistep', 1)
+        self.alpha = config.get('alpha', 1.0)
+        self.beta = config.get('beta', 1.0)
+        self.delta = config.get('delta', 0.005)
+        self.epsilon = config.get('epsilon', 0.1)
+        self.gamma = config.get('gamma', 0.99)
+    
+        self.optimizer = tf.keras.optimizers.Adam(
+            learning_rate=self.learning_rate,
+            clipnorm=1.0
+        )
+
+        self.env_name = config['env_name']
+        self.algo_name = str(config['algo'])
+        self.run_name = config['run_name']
+
+        if 'ckpt_folder' not in config:
+            self.ckpt_dir = os.path.join('checkpoints', self.run_name)
+        else:
+            self.ckpt_dir = os.path.join(config['ckpt_folder'], self.run_name)
+        os.makedirs(self.ckpt_dir, exist_ok=True)
+
+        self.ckpt = tf.train.Checkpoint(
+            model=self.model,
+            target=self.target,
+            optimizer=self.optimizer
+        )
+        self.ckpt_manager = tf.train.CheckpointManager(
+            self.ckpt, directory=self.ckpt_dir, max_to_keep=3
+        )
+
+        self.update_counter = 0
+
+        self.double_DQN = ('DDQN' in self.mode)
+        self.prioritized_sampling = ('PER' in self.mode)
+        self.noisy_DQN = ('noisy' in self.mode)
+
+    # the old init method for backwards compatibility
+    def init(self, 
+             model,
+             buffer,
+             target=None,
+             env=None,
+             mode=('DQN'),
+             learning_rate=0.001,
+             batch_size=128,
+             update_steps=5,
+             update_freq=4,
+             target_delay=500,
+             multistep=1,
+             alpha=1.0,
+             beta=1.0,
+             delta=0.005,
+             epsilon=0.1,
+             gamma=0.99,
+             env_name='',
+             algo_name='',
+             run_name=None,
+             ckpt_folder=None,
+             **kwargs):
         self.model = model
         self.buffer = buffer
         self.env = env
