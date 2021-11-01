@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-def get_policy_architecture(env_name, algo='PPO', pretrain=None):
+def get_policy_architecture(env_name, algo='PPO', head=None):
     if env_name == "CartPole-v0":
         if 'Dueling' in algo:
             inp = tf.keras.Input(shape=(4,))
@@ -36,15 +36,9 @@ def get_policy_architecture(env_name, algo='PPO', pretrain=None):
     elif env_name == "gym_snake:snake-v0":
         if 'Dueling' in algo:
             inp = tf.keras.Input(shape=(15, 15, 3,))
-            if pretrain is None:
-                inp2 = tf.keras.Input(shape=(15, 15, 3,))
-                ft = tf.keras.layers.Conv2D(4, (1,1), activation=None)(inp2)
-                conv1 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(ft)
-                conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv1)
-                features = tf.keras.layers.Flatten()(conv2)
-                hidden1 = tf.keras.layers.Dense(512, activation='relu')(features)
-                pretrain = tf.keras.Model(inputs=inp2, outputs=hidden1, name="vision")
-            h1 = pretrain(inp)
+            if head is None:
+                head = get_vision_architecture(env_name)
+            h1 = head(inp)
             hidden2 = tf.keras.layers.Dense(64, activation='relu')(h1)
             val = tf.keras.layers.Dense(1, activation='linear')(hidden2)
             adv = tf.keras.layers.Dense(4, activation='linear')(hidden2)
@@ -53,15 +47,15 @@ def get_policy_architecture(env_name, algo='PPO', pretrain=None):
             model = tf.keras.Model(inputs=inp, outputs=out, name="dueling-DQN")
         else:
             inp = tf.keras.Input(shape=(15, 15, 3))
-            if pretrain is None:
+            if head is None:
                 inp2 = tf.keras.Input(shape=(15, 15, 3,))
                 ft = tf.keras.layers.Conv2D(4, (1,1), activation=None)(inp2)
                 conv1 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(ft)
                 conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv1)
                 features = tf.keras.layers.Flatten()(conv2)
                 hidden1 = tf.keras.layers.Dense(512, activation='relu')(features)
-                pretrain = tf.keras.Model(inputs=inp2, outputs=hidden1, name="vision")
-            h1 = pretrain(inp)
+                head = tf.keras.Model(inputs=inp2, outputs=hidden1, name="vision")
+            h1 = head(inp)
             h2 = tf.keras.layers.Dense(64, activation='relu')(h1)
             out = tf.keras.layers.Dense(4, activation='softmax' if 'PPO' in algo else None)(h2)
             model = tf.keras.Model(inputs=inp, outputs=out, name=str(algo))
@@ -182,7 +176,6 @@ def get_vision_architecture(env_name):
         conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv1)
         features = tf.keras.layers.Flatten()(conv2)
         fc1 = tf.keras.layers.Dense(512, activation='relu')(features)
-        out = tf.keras.layers.Dense(16, activation=None)(fc1)
-        model = tf.keras.Model(inputs=inp, outputs=out, name="embed")
+        model = tf.keras.Model(inputs=inp, outputs=fc1, name="vision")
     
     return model

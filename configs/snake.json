@@ -2,10 +2,24 @@
 	"learning_rate": 0.00005,
 	"minibatch_size": 50,
 	"batch_size": 64,
+	"n_actions": 4,
 	"t_max": 1000,
 	"train_epochs": 20000,
 	"max_buf_size": 40000,
 	"buf_size": 2000,
 	"env": "gym_snake:snake-v0",
-	"env_name": "snake"
+	"env_name": "snake",
+	"multistep": 5,
+	"algo": [
+		"DDQN", "Dueling"
+	],
+	"callbacks": [
+		{
+			"type": "pretrain",
+			"kwargs": {
+				"episodes": 500, 
+				"train_epochs": 6
+			}
+		}
+	]
 }

@@ -9,6 +9,7 @@ import numpy as np
 from rl.models import get_policy_architecture
 from utils.Buffer import ReplayBuffer
 from utils.Env import get_env
+from utils.Callbacks import get_callbacks
 
 class DQN_agent:
 
@@ -36,6 +37,10 @@ class DQN_agent:
         self.delta = config.get('delta', 0.005)
         self.epsilon = config.get('epsilon', 0.1)
         self.gamma = config.get('gamma', 0.99)
+        self.n_actions = config.get('n_actions')
+        self.t_max = config.get('t_max', 1000)
+
+        self.callbacks = get_callbacks(config.get('callbacks', []))
     
         self.optimizer = tf.keras.optimizers.Adam(
             learning_rate=self.learning_rate,
@@ -43,6 +48,7 @@ class DQN_agent:
         )
 
         self.env_name = config['env_name']
+        self.raw_env_name = config.get('env', self.env_name)
         self.algo_name = str(config['algo'])
         self.run_name = config['run_name']
 
@@ -66,6 +72,9 @@ class DQN_agent:
         self.double_DQN = ('DDQN' in self.mode)
         self.prioritized_sampling = ('PER' in self.mode)
         self.noisy_DQN = ('noisy' in self.mode)
+
+        for callback in self.callbacks:
+            callback.on_init(self)
     """
 
     # the old init method for backwards compatibility
