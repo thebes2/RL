@@ -12,6 +12,7 @@ from utils.Env import get_env
 
 class DQN_agent:
 
+    """
     def __init__(self, config):
         self.model = get_policy_architecture(config['env'], algo=config['algo'])
         self.buffer = ReplayBuffer(
@@ -65,9 +66,10 @@ class DQN_agent:
         self.double_DQN = ('DDQN' in self.mode)
         self.prioritized_sampling = ('PER' in self.mode)
         self.noisy_DQN = ('noisy' in self.mode)
+    """
 
     # the old init method for backwards compatibility
-    def init(self, 
+    def __init__(self, 
              model,
              buffer,
              target=None,
@@ -88,6 +90,7 @@ class DQN_agent:
              algo_name='',
              run_name=None,
              ckpt_folder=None,
+             callbacks=[],
              **kwargs):
         self.model = model
         self.buffer = buffer
@@ -117,6 +120,8 @@ class DQN_agent:
         self.env_name = env_name
         self.algo_name = algo_name
         self.run_name = run_name
+        self.callbacks = callbacks
+
         if self.run_name is None:
             now = datetime.now()
             self.run_name = "{}-{}-{}".format(env_name, algo_name, now.strftime('%H-%M-%S'))
@@ -320,6 +325,9 @@ class DQN_agent:
             clipped_grads = [tf.clip_by_value(grad, -1.0, 1.0) for grad in model_grads]
             self.optimizer.apply_gradients(zip(clipped_grads, self.model.trainable_variables))
 
+        for callback in self.callbacks:
+            callback.on_train_step_end(self)
+        
         self.update_target_step()
 
     def update_target_step(self):
@@ -353,6 +361,9 @@ class DQN_agent:
                 print("Buffer size: {}".format(self.buffer.size()))
                 avg_reward = 0
                 self.save_to_checkpoint()
+
+            for callback in self.callbacks:
+                callback.on_episode_end(self)
         
         return hist
 
