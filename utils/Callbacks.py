@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+from tqdm.auto import tqdm
 
 from rl.models import get_policy_architecture, get_vision_architecture
 from utils.Conv import ConvHead
@@ -98,14 +99,14 @@ class PretrainCallback(Callback):
 
     def on_init(self, agent):
         head = get_vision_architecture(agent.raw_env_name)
-        embed = tf.keras.layers.Dense(self.embed_dim, activation=None)(head)
+        embed = tf.keras.layers.Dense(self.embed_dim, activation=None)(head.output)
         model = tf.keras.Model(inputs=head.input, outputs=embed)
 
         p_buf = []
 
         def collect_rollout(env, t_max, policy):
             s = agent.preprocess(env.reset())
-            for t in range(t_max):
+            for _ in range(t_max):
                 act = policy(s)
                 ss, r, dn, _ = env.step(agent.action_wrapper(act))
                 ss = agent.preprocess(ss)
@@ -120,7 +121,7 @@ class PretrainCallback(Callback):
             policy = lambda x: agent.get_action(x)
         elif self.policy == 'greedy':
             policy = lambda x: agent.get_action(x, mode='greedy')
-        for i in tqdm(range(self.episodes)):
+        for _ in tqdm(range(self.episodes)):
             collect_rollout(agent.env, agent.t_max, policy)
         
         trainer = ConvHead(model, p_buf, lr=self.learning_rate)
