@@ -13,8 +13,10 @@ from utils.Callbacks import get_callbacks
 
 class DQN_agent:
 
-    """
+    
     def __init__(self, config):
+        self.config = config
+
         self.model = get_policy_architecture(config['env'], algo=config['algo'])
         self.buffer = ReplayBuffer(
             config.get('max_buf_size', 20000),
@@ -22,7 +24,7 @@ class DQN_agent:
         )
         self.env = get_env(config['env'])
         self.target = tf.keras.models.clone_model(self.model)
-        self.mode = config['algo']
+        self.algo = config['algo']
 
         self._stdout = sys.stdout
 
@@ -51,6 +53,7 @@ class DQN_agent:
         self.raw_env_name = config.get('env', self.env_name)
         self.algo_name = str(config['algo'])
         self.run_name = config['run_name']
+        self.existing = False
 
         if 'ckpt_folder' not in config:
             self.ckpt_dir = os.path.join('checkpoints', self.run_name)
@@ -67,18 +70,20 @@ class DQN_agent:
             self.ckpt, directory=self.ckpt_dir, max_to_keep=3
         )
 
+        self.load_from_checkpoint()
+
         self.update_counter = 0
 
-        self.double_DQN = ('DDQN' in self.mode)
-        self.prioritized_sampling = ('PER' in self.mode)
-        self.noisy_DQN = ('noisy' in self.mode)
+        self.double_DQN = ('DDQN' in self.algo)
+        self.prioritized_sampling = ('PER' in self.algo)
+        self.noisy_DQN = ('noisy' in self.algo)
 
         for callback in self.callbacks:
             callback.on_init(self)
-    """
+
 
     # the old init method for backwards compatibility
-    def __init__(self, 
+    def init(self, 
              model,
              buffer,
              target=None,
@@ -363,13 +368,14 @@ class DQN_agent:
             avg_reward += reward
             hist.append(reward)
 
-            if logging and t % epochs_per_log == epochs_per_log-1:
+            if t % epochs_per_log == epochs_per_log-1:
                 avg_reward /= epochs_per_log
-                print("[{}] Average reward: {}".format(t+1, avg_reward))
-                print("Predicted reward: {}".format(self.get_model(self.preprocess(self.env.reset()))))
-                print("Buffer size: {}".format(self.buffer.size()))
+                if logging:
+                    print("[{}] Average reward: {}".format(t+1, avg_reward))
+                    print("Predicted reward: {}".format(self.get_model(self.preprocess(self.env.reset()))))
+                    print("Buffer size: {}".format(self.buffer.size()))
                 avg_reward = 0
-                self.save_to_checkpoint()
+                self.save_to_checkpoint(logging)
 
             for callback in self.callbacks:
                 callback.on_episode_end(self)
@@ -381,7 +387,8 @@ class DQN_agent:
         self.model = tf.keras.models.load_model(model_path)
 
     def load_from_checkpoint(self): 
-        self.ckpt_manager.restore_or_initialize()
+        if self.ckpt_manager.restore_or_initialize() is not None:
+            self.existing = True
 
     def save(self, path=''):
         if len(path) == 0:
@@ -394,6 +401,7 @@ class DQN_agent:
         model_path = os.path.join(path, 'model.h5')
         self.model.save(model_path)
 
-    def save_to_checkpoint(self):
-        print('Saving to checkpoint...')
+    def save_to_checkpoint(self, logging=True):
+        if logging:
+            print('Saving to checkpoint...')
         self.ckpt_manager.save()

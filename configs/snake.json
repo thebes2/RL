@@ -15,10 +15,16 @@
 	],
 	"callbacks": [
 		{
-			"type": "pretrain",
+			"type": "PretrainCallback",
 			"kwargs": {
 				"episodes": 500, 
 				"train_epochs": 6
+			}
+		},
+		{
+			"type": "InitBufferCallback",
+			"kwargs": {
+				"episodes": 500
 			}
 		}
 	]

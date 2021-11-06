@@ -1,10 +1,27 @@
 {
 	"learning_rate": 0.0003,
 	"minibatch_size": 20,
-	"batch_size": 128,
+	"batch_size": 64,
+	"n_actions": 4,
 	"t_max": 500,
 	"train_epochs": 400,
 	"env": "LunarLander-v2",
 	"env_name": "lunarlander",
-	"use_raw_env": "true"
+	"use_raw_env": "true",
+	"multistep": 10,
+	"target_delay": 1,
+	"alpha": 0.6,
+	"beta": 0.5,
+	"delta": 0.0001,
+	"algo": [
+		"DDQN", "Dueling"
+	],
+	"callbacks": [
+		{
+			"type": "InitBufferCallback",
+			"kwargs": {
+				"episodes": 50
+			}
+		}
+	]
 }
