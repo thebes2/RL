@@ -359,7 +359,11 @@ class DQN_agent:
             self.update_model_step()
         self.update_target_step()
 
-    def train(self, epochs=1000, t_max=10000, logging=True, display=False):
+    def train(self, epochs=None, t_max=None, logging=True, display=False):
+        if epochs is None:
+            epochs = self.config.get('train_epochs', 1000)
+        if t_max is None:
+            t_max = self.config.get('t_max', 10000)
         avg_reward = 0.
         epochs_per_log = 5
         hist = []
