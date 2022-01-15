@@ -22,7 +22,7 @@ class DQN_agent:
             config.get('max_buf_size', 20000),
             mode = 'proportional' if 'PER' in config['algo'] else 'uniform'
         )
-        self.env = get_env(config['env'])
+        self.env = get_env(config['env'], config['use_raw_env'])
         self.target = tf.keras.models.clone_model(self.model)
         self.algo = config['algo']
 

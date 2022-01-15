@@ -10,6 +10,10 @@
 	"env": "gym_snake:snake-v0",
 	"env_name": "snake",
 	"multistep": 5,
+	"alpha": 0.6,
+	"beta": 0.5,
+	"delta": 1.0,
+	"target_delay": 500,
 	"algo": [
 		"DDQN", "Dueling"
 	],
@@ -25,6 +29,32 @@
 			"type": "InitBufferCallback",
 			"kwargs": {
 				"episodes": 500
+			}
+		},
+		{
+			"type": "AnnealingSchedulerCallback",
+			"kwargs": {
+				"target": "epsilon",
+				"schedule": [
+					{
+						"type": "Schedule",
+						"kwargs": {
+							"length": 1000,
+							"start_val": 0.4,
+							"end_val": 0.1,
+							"fn": "linear"
+						}
+					},
+					{
+						"type": "Schedule",
+						"kwargs": {
+							"length": 9000,
+							"start_val": 0.1,
+							"end_val": 0.01,
+							"fn": "linear"
+						}
+					}
+				]
 			}
 		}
 	]

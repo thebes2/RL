@@ -84,7 +84,7 @@ class ConvHead:
             avg = 0
             for x,y in tqdm(self.gen):
                 avg += self.train_step(x,y)
-            print("[{}] Loss: {}".format(t, avg/self.gen.__len__()))
+            # print("[{}] Loss: {}".format(t, avg/self.gen.__len__()))
             self.gen.on_epoch_end()
 
         #self.model.fit_generator(

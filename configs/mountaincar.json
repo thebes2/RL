@@ -2,10 +2,27 @@
 	"learning_rate": 0.01,
 	"minibatch_size": 32,
 	"batch_size": 64,
+	"n_actions": 3,
 	"t_max": 1000,
 	"train_epochs": 1000,
 	"buf_size": 10000,
 	"env": "MountainCar-v0",
 	"env_name": "mountaincar",
-    "use_raw_env": true
+    "use_raw_env": "true",
+	"multistep": 5,
+	"target_delay": 1,
+	"alpha": 0.6,
+	"beta": 0.5,
+	"delta": 0.0001,
+	"algo": [
+		"DDQN", "Dueling", "PER"
+	],
+	"callbacks": [
+		{
+			"type": "InitBufferCallback",
+			"kwargs": {
+				"episodes": 25
+			}
+		}
+	]
 }
