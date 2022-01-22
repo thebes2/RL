@@ -6,6 +6,10 @@ from rl.models import get_policy_architecture, get_vision_architecture
 from utils.Conv import ConvHead
 
 class Callback:
+    """
+    Callbacks expose hooks to the training process and allow modular/independent
+    behaviors without modifying the main model
+    """
 
     def __init__(self):
         pass

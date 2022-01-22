@@ -9,11 +9,14 @@
 	"buf_size": 2000,
 	"env": "gym_snake:snake-v0",
 	"env_name": "snake",
+	"use_raw_env": false,
 	"multistep": 5,
+	"update_freq": 4,
+	"update_steps": 1,
 	"alpha": 0.6,
 	"beta": 0.5,
 	"delta": 1.0,
-	"target_delay": 500,
+	"target_delay": 750,
 	"algo": [
 		"DDQN", "Dueling"
 	],
