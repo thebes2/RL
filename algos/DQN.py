@@ -274,8 +274,6 @@ class DQN_agent:
     def unpack(self, samples):
         s, a, r, p, ss = [], [], [], [], []
         for sample in samples:
-            if sample is None:
-                print(sample)
             s.append(sample[0])
             a.append(sample[1])
             r.append(sample[2])

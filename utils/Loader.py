@@ -4,6 +4,7 @@ import os
 
 from algos.DQN import DQN_agent
 from algos.PPO import PPO_agent
+from algos.SPR import SPR_agent
 
 # override saved configuration in cfg_path with config
 def load_agent(cfg_path, run_name, ckpt_folder='checkpoints', config=dict()):
@@ -37,7 +38,9 @@ def load_agent(cfg_path, run_name, ckpt_folder='checkpoints', config=dict()):
 
 def load_from_config(config):
     print("{}Loading agent: {}{}".format('\033[92m', config['run_name'], '\033[0m'))
-    if 'DQN' in "\n".join(config['algo']): # might need better way of doing this
+    if 'SPR' in "\n".join(config['algo']):
+        return SPR_agent(config)
+    elif 'DQN' in "\n".join(config['algo']): # might need better way of doing this
         return DQN_agent(config)
     elif 'PPO' in config['algo']:
         raise NotImplementedError("PPO_agent cannot load from cfg yet")

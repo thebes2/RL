@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-def get_policy_architecture(env_name, algo='PPO', head=None):
+def get_policy_architecture(env_name, algo='PPO', head=None, tail=None):
     if env_name == "CartPole-v0":
         if 'Dueling' in algo:
             inp = tf.keras.Input(shape=(4,))
@@ -34,31 +34,14 @@ def get_policy_architecture(env_name, algo='PPO', head=None):
             tf.keras.layers.Dense(3, activation='softmax' if algo == 'PPO' else None)
         ])
     elif env_name == "gym_snake:snake-v0":
-        if 'Dueling' in algo:
-            inp = tf.keras.Input(shape=(15, 15, 3,))
-            if head is None:
-                head = get_vision_architecture(env_name)
-            h1 = head(inp)
-            hidden2 = tf.keras.layers.Dense(64, activation='relu')(h1)
-            val = tf.keras.layers.Dense(1, activation='linear')(hidden2)
-            adv = tf.keras.layers.Dense(4, activation='linear')(hidden2)
-            avg = tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, 1))(adv)
-            out = tf.keras.layers.Add()([val, adv, -avg])
-            model = tf.keras.Model(inputs=inp, outputs=out, name="dueling-DQN")
-        else:
-            inp = tf.keras.Input(shape=(15, 15, 3))
-            if head is None:
-                inp2 = tf.keras.Input(shape=(15, 15, 3,))
-                ft = tf.keras.layers.Conv2D(4, (1,1), activation=None)(inp2)
-                conv1 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(ft)
-                conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv1)
-                features = tf.keras.layers.Flatten()(conv2)
-                hidden1 = tf.keras.layers.Dense(512, activation='relu')(features)
-                head = tf.keras.Model(inputs=inp2, outputs=hidden1, name="vision")
-            h1 = head(inp)
-            h2 = tf.keras.layers.Dense(64, activation='relu')(h1)
-            out = tf.keras.layers.Dense(4, activation='softmax' if 'PPO' in algo else None)(h2)
-            model = tf.keras.Model(inputs=inp, outputs=out, name=str(algo))
+        inp = tf.keras.Input(shape=(15, 15, 3,))
+        if head is None:
+            head = get_vision_architecture(env_name)
+        latent = head(inp)
+        if tail is None:
+            tail = get_qlearning_architecture(env_name, algo=algo)
+        out = tail(latent)
+        model = tf.keras.Model(inputs=inp, outputs=out, name="-".join(algo))
     elif env_name == "tetris":  # the final raid boss
         model = tf.keras.Sequential([
             tf.keras.Input(shape=(20,10,3)),
@@ -74,7 +57,7 @@ def get_policy_architecture(env_name, algo='PPO', head=None):
         if algo != 'PPO':
             raise NotImplementedError("No architecture for {} yet".format(algo))
     elif env_name == "Breakout-v0":
-        model = tf.keras.Sequential([
+        model = tf.keras.Sequential([ # suggested model for breakout from tf
             tf.keras.Input(shape=(210, 160, 3,)),
             tf.keras.layers.Conv2D(32, 8, strides=4, activation='relu'),
             tf.keras.layers.Conv2D(64, 4, strides=2, activation='relu'),
@@ -83,17 +66,6 @@ def get_policy_architecture(env_name, algo='PPO', head=None):
             tf.keras.layers.Dense(512, activation='relu'),
             tf.keras.layers.Dense(4, activation=None)
         ])
-        """
-        model = tf.keras.Sequential([
-            tf.keras.Input(shape=(42,32,3)),
-            tf.keras.layers.Conv2D(64, (3, 3), activation='elu'),
-            tf.keras.layers.Conv2D(128, (3, 3), activation='elu', padding='valid'),
-            tf.keras.layers.Flatten(),
-            tf.keras.layers.Dense(256, activation='elu'),
-            tf.keras.layers.Dense(64, activation='elu'),
-            tf.keras.layers.Dense(3, activation='softmax' if algo == 'PPO' else None)
-        ])
-        """
     elif env_name == "LunarLander-v2":
         if 'Dueling' in algo:
             inp = tf.keras.Input(shape=(8,))
@@ -167,15 +139,68 @@ def get_value_architecture(env_name):
     return value
 
 
-def get_vision_architecture(env_name):
+SNAKE_EMBED_DIM = 128
+
+def get_vision_architecture(env_name, algo=None):
 
     if env_name == 'gym_snake:snake-v0':
         inp = tf.keras.Input(shape=(15, 15, 3,))
         ft = tf.keras.layers.Conv2D(4, (1,1), activation=None)(inp)
-        conv1 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(ft)
-        conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv1)
+        conv1 = tf.keras.layers.Conv2D(32, (3, 3), activation='relu', padding='same')(ft)
+        conv2 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(conv1)
         features = tf.keras.layers.Flatten()(conv2)
-        fc1 = tf.keras.layers.Dense(512, activation='relu')(features)
+        fc1 = tf.keras.layers.Dense(SNAKE_EMBED_DIM, activation='relu')(features)
         model = tf.keras.Model(inputs=inp, outputs=fc1, name="vision")
     
+    return model
+
+
+def get_qlearning_architecture(env_name, algo=None):
+
+    if env_name == 'gym_snake:snake-v0':
+        inp = tf.keras.Input(shape=(SNAKE_EMBED_DIM,))
+        if 'Dueling' in algo:
+            hidden = tf.keras.layers.Dense(64, activation='relu')(inp)
+            val = tf.keras.layers.Dense(1, activation='linear')(hidden)
+            adv = tf.keras.layers.Dense(4, activation='linear')(hidden)
+            avg = tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, 1))(adv)
+            out = tf.keras.layers.Add()([val, adv, -avg])
+        else:
+            hidden = tf.keras.layers.Dense(64, activation='relu')(inp)
+            out = tf.keras.layers.Dense(4, activation='softmax' if 'PPO' in algo else None)(hidden)
+        model = tf.keras.Model(inputs=inp, outputs=out, name="qlearning-head")
+
+    return model
+
+
+def get_transition_architecture(env_name, algo=None):
+
+    if env_name == 'gym_snake:snake-v0':
+        inp = tf.keras.Input(shape=(SNAKE_EMBED_DIM+4,))
+        hidden1 = tf.keras.layers.Dense(SNAKE_EMBED_DIM)(inp)
+        bn = tf.keras.layers.BatchNormalization()(hidden1)
+        act1 = tf.keras.layers.Activation('relu')(bn)
+        hidden2 = tf.keras.layers.Dense(SNAKE_EMBED_DIM, activation='relu')(act1)
+        model = tf.keras.Model(inputs=inp, outputs=hidden2, name="transition")
+
+    return model
+
+
+def get_projection_architecture(env_name, algo=None, cfg={}):
+
+    if env_name == 'gym_snake:snake-v0':
+        inp = tf.keras.Input(shape=(SNAKE_EMBED_DIM,))
+        proj = tf.keras.layers.Dense(cfg['latent_dim'], activation=None)(inp)
+        model = tf.keras.Model(inputs=inp, outputs=proj, name="projection")
+
+    return model
+
+
+def get_prediction_architecture(env_name, cfg={}):
+
+    if env_name == 'gym_snake:snake-v0':
+        inp = tf.keras.Input(shape=(cfg['latent_dim'], ))
+        proj = tf.keras.layers.Dense(cfg['latent_dim'], activation=None)(inp)
+        model = tf.keras.Model(inputs=inp, outputs=proj, name="prediction")
+
     return model

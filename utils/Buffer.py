@@ -72,20 +72,22 @@ class SegmentTree:
 class ReplayBuffer:
 
     def __init__(self,
-                 max_size=1000000,
+                 max_size=20000,
                  num_samples=128,
                  samples_per_rebuild=10000,
                  beta=1.0,
-                 mode='uniform'):
+                 mode='uniform',
+                 steps=1):
         self.max_size = max_size
         self.num_samples = num_samples
         self.mode = mode
+        self.steps = steps
         self.counter = 0
         self.samples = 0
-        if self.mode not in ('uniform', 'rank', 'proportional'):
+        if self.mode not in ('uniform', 'rank', 'proportional', 'spr'):
             raise Exception("Invalid mode: {}".format(self.mode))
 
-        if self.mode == 'uniform':
+        if self.mode in ('uniform', 'spr'):
             self.queue = []
         elif self.mode == 'proportional':
             self.arr = [None] * max_size
@@ -100,7 +102,7 @@ class ReplayBuffer:
 
     def add(self, obs):
         self.counter += 1
-        if self.mode == 'uniform':
+        if self.mode in ('uniform', 'spr'):
             if len(self.queue) >= self.max_size:
                 del self.queue[0]
             self.queue.append(obs)
@@ -117,9 +119,20 @@ class ReplayBuffer:
             num_samples = self.num_samples
         if num_samples > self.size():
             num_samples = self.size()
-        if self.mode == 'uniform':
+        if self.mode in ('uniform', 'spr'):
             idxs = np.random.choice(len(self.queue), size=num_samples, replace=False)
-            return list(map(lambda x: self.queue[x], idxs))
+            if self.mode == 'uniform':
+                return list(map(lambda x: self.queue[x], idxs))
+            def collect(idx): # collect samples until end of episode or step limit reached
+                res = [self.queue[idx]]
+                i = 1
+                while i < self.steps and self.queue[idx+i-1][3] > 0 and self.queue[idx+i-1][2] <= 0 and idx+i < len(self.queue):
+                    # TODO: a bit sketchy, use a dataclass rather than tuple
+                    # we do this so as to not ask the model to predict past end of episode / appearance of new apple for snake as it is stochastic
+                    res.append(self.queue[idx+i])
+                    i += 1
+                return res
+            return list(map(collect, idxs))
         elif self.mode == 'proportional':
             idxs = []
             # slightly different from PER paper
@@ -140,7 +153,7 @@ class ReplayBuffer:
             self.seg.update(idx, p)
 
     def size(self):
-        if self.mode == 'uniform':
+        if self.mode in ('uniform', 'spr'):
             return len(self.queue)
         elif self.mode == 'proportional':
             return min(self.counter, self.max_size)
