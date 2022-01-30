@@ -24,3 +24,9 @@ repos:
     entry: scripts/clean_notebooks.sh
     language: system
     files: '.*\.ipynb'
+  - id: update-deps
+    name: update dependencies
+    entry: scripts/update_deps.sh
+    pass_filesnames: false
+    language: system
+    always_run: true
