@@ -6,6 +6,8 @@ from algos.DQN import DQN_agent
 from algos.PPO import PPO_agent
 from algos.SPR import SPR_agent
 
+# TODO: move constants to certain file
+DEFAULT_CONFIG_PATH = "configs/default.json"
 
 # override saved configuration in cfg_path with config
 def load_agent(cfg_path, run_name, ckpt_folder="checkpoints", config=dict()):
@@ -21,6 +23,11 @@ def load_agent(cfg_path, run_name, ckpt_folder="checkpoints", config=dict()):
         print("{}Creating new run{}".format("\033[93m", "\033[0m"))
         with open(cfg_path, "r") as f:
             fconf = json.load(f)
+        with open(DEFAULT_CONFIG_PATH, "r") as f:
+            dconf = json.load(f)
+        for key, val in dconf.items():
+            if key not in fconf:
+                fconf[key] = val
         for key, val in fconf.items():
             if key not in config:
                 config[key] = val

@@ -20,7 +20,7 @@ class DQN_agent:
 
         self.model = get_policy_architecture(config["env"], algo=config["algo"])
         self.buffer = ReplayBuffer(
-            config.get("max_buf_size", 20000),
+            config["max_buf_size"],
             mode="proportional" if "PER" in config["algo"] else "uniform",
         )
         self.env = get_env(config["env"], config["use_raw_env"])
@@ -29,19 +29,19 @@ class DQN_agent:
 
         self._stdout = sys.stdout
 
-        self.learning_rate = config.get("learning_rate", 0.001)
-        self.batch_size = config.get("batch_size", 64)
-        self.update_steps = config.get("update_steps", 5)
-        self.update_freq = config.get("update_freq", 4)
-        self.target_delay = config.get("target_delay", 500)
-        self.multistep = config.get("multistep", 1)
-        self.alpha = config.get("alpha", 1.0)
-        self.beta = config.get("beta", 1.0)
-        self.delta = config.get("delta", 0.005)
-        self.epsilon = config.get("epsilon", 0.1)
-        self.gamma = config.get("gamma", 0.99)
-        self.n_actions = config.get("n_actions")
-        self.t_max = config.get("t_max", 1000)
+        self.learning_rate = config["learning_rate"]
+        self.batch_size = config["batch_size"]
+        self.update_steps = config["update_steps"]
+        self.update_freq = config["update_freq"]
+        self.target_delay = config["target_delay"]
+        self.multistep = config["multistep"]
+        self.alpha = config["alpha"]
+        self.beta = config["beta"]
+        self.delta = config["delta"]
+        self.epsilon = config["epsilon"]
+        self.gamma = config["gamma"]
+        self.n_actions = config["n_actions"]
+        self.t_max = config["t_max"]
 
         self.callbacks = get_callbacks(config.get("callbacks", []))
 

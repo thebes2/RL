@@ -27,6 +27,10 @@ General:
 - `callbacks`: list of callbacks for modifying model behavior
 
 Hyperparameters:
+- Exploration:
+  - `epsilon`: probability of taking random action when exploring with epsilon-greedy strategy
+- Rewards:
+  - `gamma`: per-timestep discount factor
 - Prioritized replay/sampling:
   - `alpha`: exponential coefficient for sampling probabilities (increases bias but mines harder samples)
   - `beta`: importance sampling coefficient (decreases bias but lowers learning rate)
@@ -37,3 +41,9 @@ Hyperparameters:
   - `latent_dim`: dimension of the latent representation used in transition model
   - `_multistep`: number of steps to unroll transition model
   - `lambda`: weighting coefficient for SPR loss when training
+
+### Configs
+
+The default configuration is stored in `default.json`. Defining a parameter in a task-specific configuration file will override the default value.
+
+The default config creates a double DQN agent with dueling, Polyak updates for target network, and initializes the buffer with random episodes.

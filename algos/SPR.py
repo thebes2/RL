@@ -44,7 +44,7 @@ class SPR_agent(DQN_agent):
             num_samples=config["batch_size"], mode="spr", steps=config["_multistep"]
         )
 
-        self.trainable_variables = sum(
+        self.trainable_variables = sum(  # do not directly train targets
             (
                 model.trainable_variables
                 for model in (
