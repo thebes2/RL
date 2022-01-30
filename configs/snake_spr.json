@@ -3,6 +3,7 @@
 	"batch_size": 64,
 	"n_actions": 4,
 	"train_epochs": 20000,
+	"max_buf_size": 40000,
 	"env": "gym_snake:snake-v0",
 	"env_name": "snake",
 	"use_raw_env": false,
