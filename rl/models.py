@@ -173,10 +173,10 @@ def get_qlearning_architecture(env_name, algo=None):
     return model
 
 
-def get_transition_architecture(env_name, algo=None):
+def get_transition_architecture(env_name, algo=None, cfg={}):
 
     if env_name == 'gym_snake:snake-v0':
-        inp = tf.keras.Input(shape=(SNAKE_EMBED_DIM+4,))
+        inp = tf.keras.Input(shape=(SNAKE_EMBED_DIM+cfg['n_actions'],))
         hidden1 = tf.keras.layers.Dense(SNAKE_EMBED_DIM)(inp)
         bn = tf.keras.layers.BatchNormalization()(hidden1)
         act1 = tf.keras.layers.Activation('relu')(bn)

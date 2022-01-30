@@ -32,7 +32,7 @@ class SPR_agent(DQN_agent):
         self.vision_target = get_vision_architecture(config['env'], algo=config['algo'])
         self.qlearning = get_qlearning_architecture(config['env'], algo=config['algo'])
         self.qlearning_target = get_qlearning_architecture(config['env'], algo=config['algo'])
-        self.transition = get_transition_architecture(config['env'])
+        self.transition = get_transition_architecture(config['env'], cfg=config)
         self.projection = get_projection_architecture(config['env'], cfg=config)
         self.projection_target = get_projection_architecture(config['env'], cfg=config)
         self.prediction = get_prediction_architecture(config['env'], cfg=config)
