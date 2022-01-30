@@ -16,7 +16,11 @@ mpiexec -n <n_threads> python -m rl.run_mpi
 ```
 which splits up rollouts and gradient computation onto `<n_threads>` threads. Currently, this only makes sense for `PPO` as the training bottleneck for `DQN`-like agents are the update steps (which TensorFlow parallelizes across threads) and not environment interaction.
 
-For running a model on GPU: Coming soon:tm:
+For running a model on GPU:
+```
+CUDA_VISIBLE_DEVICES=<device> python -m rl.run --env=<env>
+```
+where `<device>` is the id of the GPU to use (i.e. `CUDA_VISIBLE_DEVICES=0`).
 
 ### Setup
 1. Clone the repo

@@ -4,11 +4,6 @@ import sys
 
 from utils.utils import *
 
-os.environ[
-    "CUDA_VISIBLE_DEVICES"
-] = "-1"  #### REMOVE THIS LINE WHEN CUDA CONFIG IS FIXED
-
-
 envs = os.listdir("configs")
 envs = list(map(lambda x: x[:-5], envs))
 
