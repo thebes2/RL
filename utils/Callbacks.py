@@ -1,9 +1,10 @@
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
 from tqdm.auto import tqdm
 
 from rl.models import get_policy_architecture, get_vision_architecture
 from utils.Conv import ConvHead
+
 
 class Callback:
     """
@@ -25,9 +26,9 @@ class Callback:
 
 
 def get_callback_or_value(x):
-    if type(x) is dict and 'type' in x:
-        proc_args = { k: get_callback_or_value(v) for k,v in x['kwargs'].items()}
-        return globals()[x['type']](**proc_args)
+    if type(x) is dict and "type" in x:
+        proc_args = {k: get_callback_or_value(v) for k, v in x["kwargs"].items()}
+        return globals()[x["type"]](**proc_args)
     elif type(x) is list:
         return get_callbacks(x)
     else:
@@ -40,24 +41,24 @@ def get_callbacks(config):
 
 
 class Schedule:
-
-    def __init__(self, length, start_val, end_val=0, fn='constant'):
-        if fn not in ('constant', 'linear'):
-            raise NotImplementedError("Only constant and linear scaling is supported for now")
+    def __init__(self, length, start_val, end_val=0, fn="constant"):
+        if fn not in ("constant", "linear"):
+            raise NotImplementedError(
+                "Only constant and linear scaling is supported for now"
+            )
         self.length = length
         self.start_val = start_val
         self.end_val = end_val
         self.fn = fn
 
     def get_val(self, cnt):
-        if self.fn == 'constant':
+        if self.fn == "constant":
             return self.start_val
-        elif self.fn == 'linear':
+        elif self.fn == "linear":
             return (self.end_val - self.start_val) / self.length * cnt + self.start_val
 
 
 class AnnealingSchedulerCallback(Callback):
-
     def __init__(self, target, schedule):
         super(AnnealingSchedulerCallback, self).__init__()
         self.counter = 0
@@ -89,28 +90,30 @@ class AnnealingSchedulerCallback(Callback):
 class PretrainCallback(Callback):
 
     """
-        Used for training the convolutional head for models that operate
-        on raw pixels rather than vectors
+    Used for training the convolutional head for models that operate
+    on raw pixels rather than vectors
 
-        Currently supports using AM-Softmax to generate embeddings for
-        inputs from the environment rather than using reconstruction loss
+    Currently supports using AM-Softmax to generate embeddings for
+    inputs from the environment rather than using reconstruction loss
 
-        Currently supports using a policy that samples actions uniformly
-        at random.
+    Currently supports using a policy that samples actions uniformly
+    at random.
     """
 
-    def __init__(self, 
-                 episodes=100, 
-                 train_epochs=5,
-                 embed_dim=16,
-                 learning_rate=3e-4,
-                 policy='random'):
+    def __init__(
+        self,
+        episodes=100,
+        train_epochs=5,
+        embed_dim=16,
+        learning_rate=3e-4,
+        policy="random",
+    ):
         super(PretrainCallback, self).__init__()
         self.episodes = episodes
         self.train_epochs = train_epochs
         self.embed_dim = embed_dim
         self.learning_rate = learning_rate
-        if policy not in ('random', 'greedy', 'eps-greedy'):
+        if policy not in ("random", "greedy", "eps-greedy"):
             raise NotImplementedError("Invalid policy " + policy)
         self.policy = policy
 
@@ -133,33 +136,31 @@ class PretrainCallback(Callback):
                 s = ss
                 if dn:
                     break
-        
-        if self.policy == 'random':
+
+        if self.policy == "random":
             policy = lambda x: np.random.choice(agent.n_actions)
-        elif self.policy == 'eps-greedy':
+        elif self.policy == "eps-greedy":
             policy = lambda x: agent.get_action(x)
-        elif self.policy == 'greedy':
-            policy = lambda x: agent.get_action(x, mode='greedy')
+        elif self.policy == "greedy":
+            policy = lambda x: agent.get_action(x, mode="greedy")
         for _ in tqdm(range(self.episodes)):
             collect_rollout(agent.env, agent.t_max, policy)
-        
+
         trainer = ConvHead(model, p_buf, lr=self.learning_rate)
         trainer.train(self.train_epochs)
 
         features = trainer.model.layers[-2].output
         trained_model = tf.keras.Model(inputs=trainer.model.input, outputs=features)
-        agent.set_model(get_policy_architecture(
-            agent.raw_env_name,
-            agent.algo,
-            trained_model
-        ))
+        agent.set_model(
+            get_policy_architecture(agent.raw_env_name, agent.algo, trained_model)
+        )
 
 
 class InitBufferCallback(Callback):
 
     """
-        Fills replay buffer with some transitions from the environment
-        under a random policy
+    Fills replay buffer with some transitions from the environment
+    under a random policy
     """
 
     def __init__(self, episodes=100):
@@ -171,33 +172,34 @@ class InitBufferCallback(Callback):
                 t_max=agent.t_max,
                 policy=lambda x: np.random.choice(agent.n_actions),
                 train=False,
-                display=False
+                display=False,
             )
 
 
-if __name__ == '__main__':
-    a = get_callbacks([
-        {
-            "type": "AnnealingSchedulerCallback",
-            "kwargs": {
-                "target": "epsilon",
-                "schedule": [
-                    {
-                        "type": "Schedule",
-                        "kwargs": {
-                            "length": 10,
-                            "start_val": 0.3,
-                            "end_val": 0.0,
-                            "fn": "linear"
+if __name__ == "__main__":
+    a = get_callbacks(
+        [
+            {
+                "type": "AnnealingSchedulerCallback",
+                "kwargs": {
+                    "target": "epsilon",
+                    "schedule": [
+                        {
+                            "type": "Schedule",
+                            "kwargs": {
+                                "length": 10,
+                                "start_val": 0.3,
+                                "end_val": 0.0,
+                                "fn": "linear",
+                            },
                         }
-                    }
-                ]
+                    ],
+                },
             }
-        }
-    ])
+        ]
+    )
 
     class mock:
-
         def __init__(self, callbacks):
             self.epsilon = 0.10
             self.callbacks = callbacks

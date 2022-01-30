@@ -24,7 +24,7 @@
 		{
 			"type": "PretrainCallback",
 			"kwargs": {
-				"episodes": 500, 
+				"episodes": 500,
 				"train_epochs": 6
 			}
 		},

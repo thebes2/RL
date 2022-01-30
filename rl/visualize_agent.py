@@ -1,35 +1,43 @@
 import argparse
-import gym_snake
-import sys
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1" #### REMOVE THIS LINE WHEN CUDA CONFIG IS FIXED
-import matplotlib
-matplotlib.use('WX')
 import json
-import gym
+import os
+import sys
 import time
 
-from .models import get_policy_architecture, get_value_architecture
-sys.path.insert(0, '..')
+import gym
+import gym_snake
+import matplotlib
+
 from algos.PPO import PPO_agent
 
+from .models import get_policy_architecture, get_value_architecture
+
+os.environ[
+    "CUDA_VISIBLE_DEVICES"
+] = "-1"  #### REMOVE THIS LINE WHEN CUDA CONFIG IS FIXED
+
+matplotlib.use("WX")
+
+
+sys.path.insert(0, "..")
+
 parser = argparse.ArgumentParser()
-parser.add_argument('--task', type=str, default='cartpole')
-parser.add_argument('--run_name', type=str)
-parser.add_argument('--t_max', type=int, default=10000)
+parser.add_argument("--task", type=str, default="cartpole")
+parser.add_argument("--run_name", type=str)
+parser.add_argument("--t_max", type=int, default=10000)
 
 args = parser.parse_args()
 task = args.task
 run_name = args.run_name
 t_max = args.t_max
 
-cfg_fp = os.path.join('configs', task + '.json')
-with open(cfg_fp, 'r') as f:
+cfg_fp = os.path.join("configs", task + ".json")
+with open(cfg_fp, "r") as f:
     config = json.load(f)
-ckpt_folder = os.path.join('checkpoints')
+ckpt_folder = os.path.join("checkpoints")
 
-env_name = config['env']
-env = gym.make(env_name).env if 'use_raw_env' in config else gym.make(env_name)
+env_name = config["env"]
+env = gym.make(env_name).env if "use_raw_env" in config else gym.make(env_name)
 
 policy, value = get_policy_architecture(env_name), get_value_architecture(env_name)
 
@@ -37,9 +45,9 @@ agent = PPO_agent(
     policy,
     value,
     env=env,
-    env_name=config['env_name'],
+    env_name=config["env_name"],
     run_name=run_name,
-    ckpt_folder=ckpt_folder
+    ckpt_folder=ckpt_folder,
 )
 
 agent.load_from_checkpoint()
@@ -59,4 +67,5 @@ for i in range(t_max):
         break
 
 print("Total reward: {}".format(reward), file=sys.stderr)
-if close: env.close()
+if close:
+    env.close()

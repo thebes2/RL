@@ -1,22 +1,24 @@
-from matplotlib import pyplot as plt
-import numpy as np
 import os
+
+import numpy as np
+from matplotlib import pyplot as plt
 
 from utils.Loader import load_agent
 
+
 def load(run_name, env, config=dict()):
     return load_agent(
-        os.path.join('configs', env + '.json'),
+        os.path.join("configs", env + ".json"),
         run_name=run_name,
-        ckpt_folder=os.path.join('checkpoints'),
-        config=config
+        ckpt_folder=os.path.join("checkpoints"),
+        config=config,
     )
 
 
 def get_runs(base_name, runs, epochs, env, cfg):
     hist = []
     for i in range(runs):
-        print("Run {}:".format(i+1))
+        print("Run {}:".format(i + 1))
         agent = load(base_name + "-" + str(i), config=cfg)
         hist.append(agent.train(epochs, t_max=1000, logging=False, display=False))
 
@@ -24,11 +26,11 @@ def get_runs(base_name, runs, epochs, env, cfg):
 def compare_algos(base_name, runs, epochs, env, diff):
     histA, histB = [], []
     for i in range(runs):
-        print("Run {}a:".format(i+1))
+        print("Run {}a:".format(i + 1))
         agent = load(base_name + "-a-" + str(i), env)
         histA.append(agent.train(epochs, t_max=1000, logging=False, display=False))
-        
-        print("Run {}b:".format(i+1))
+
+        print("Run {}b:".format(i + 1))
         agent = load(base_name + "-b-" + str(i), env, diff)
         histB.append(agent.train(epochs, t_max=1000, logging=False, display=False))
     return histA, histB
@@ -44,8 +46,8 @@ def plot_series(*args):
 
 def plot_runs(*args):
     """
-        Accepts a list of lists for each run indicating the results of each run
-        and plots median and IQR ranges for each collection of runs
+    Accepts a list of lists for each run indicating the results of each run
+    and plots median and IQR ranges for each collection of runs
     """
     medians = []
     for c in args:
@@ -55,7 +57,7 @@ def plot_runs(*args):
         p25 = []
         p75 = []
         for i in range(n):
-            aa = a[:,i]
+            aa = a[:, i]
             med.append(np.percentile(aa, 50))
             p25.append(np.percentile(aa, 25))
             p75.append(np.percentile(aa, 75))
