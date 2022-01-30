@@ -88,7 +88,7 @@ class SPR_agent(DQN_agent):
             s.append(sample[0].state)
             a.append(sample[0].action)
             r.append(sum(step.reward for step in sample))
-            p.append(np.prod(step.discount for step in sample))
+            p.append(np.prod([step.discount for step in sample]))
             ss.append(sample[-1].next)
         return np.array(s), np.array(a), np.array(r), np.array(p), np.array(ss)
 
