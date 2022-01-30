@@ -16,3 +16,11 @@ repos:
   - id: isort
     name: isort (python)
     args: ["--profile", "black"]
+- repo: local
+  hooks:
+  - id: clean-nb
+    name: clean notebooks
+    description: clears outputs from all jupyter notebooks
+    entry: scripts/clean_notebooks.sh
+    language: system
+    files: '.*\.ipynb'
