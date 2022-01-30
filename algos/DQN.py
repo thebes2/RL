@@ -1,3 +1,4 @@
+from typing import List
 import tensorflow as tf
 import sys
 import os
@@ -7,7 +8,7 @@ from tqdm.auto import tqdm
 import numpy as np
 
 from rl.models import get_policy_architecture
-from utils.Buffer import ReplayBuffer
+from utils.Buffer import ReplayBuffer, Transition
 from utils.Env import get_env
 from utils.Callbacks import get_callbacks
 
@@ -242,7 +243,9 @@ class DQN_agent:
             obs = oo
 
             if len(queue) >= self.multistep:
-                self.buffer.add((queue[0][0], queue[0][1], rt, 0.0 if dn else g * self.gamma, oo))
+                self.buffer.add(Transition(
+                    state=queue[0][0], action=queue[0][1], reward=rt, discount=0.0 if dn else g * self.gamma, next=oo
+                ))
                 rt -= queue[0][2]
                 rt /= self.gamma
                 del queue[0]
@@ -257,7 +260,9 @@ class DQN_agent:
             if dn:
                 # clean up incomplete transitions in the queue
                 while len(queue) > 0:
-                    self.buffer.add((queue[0][0], queue[0][1], rt, 0.0, oo))
+                    self.buffer.add(Transition(
+                        state=queue[0][0], action=queue[0][1], reward=rt, discount=0.0, next=oo
+                    ))
                     rt /= self.gamma
                     rt -= queue[0][2]
                     del queue[0]
@@ -271,14 +276,14 @@ class DQN_agent:
             r[i] += 0 if i==len(r)-1 else self.gamma * r[i+1]
         return r
 
-    def unpack(self, samples):
+    def unpack(self, samples: List[Transition]):
         s, a, r, p, ss = [], [], [], [], []
         for sample in samples:
-            s.append(sample[0])
-            a.append(sample[1])
-            r.append(sample[2])
-            p.append(sample[3])
-            ss.append(sample[4])
+            s.append(sample.state)
+            a.append(sample.action)
+            r.append(sample.reward)
+            p.append(sample.discount)
+            ss.append(sample.next)
         return np.array(s), np.array(a), np.array(r), np.array(p), np.array(ss)
 
     def compute_model_loss(self, s, a, r, p, ss, w=None):

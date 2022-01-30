@@ -1,4 +1,7 @@
+from typing import List, Optional
 import numpy as np
+import dataclasses
+import tensorflow as tf
 
 class SegmentTree:
 
@@ -69,7 +72,20 @@ class SegmentTree:
         return self.qu3(1, 0, self.N-1, 0, n-1)
 
 
+@dataclasses.dataclass
+class Transition:
+    state: tf.Tensor
+    action: int
+    reward: float
+    next: tf.Tensor
+    discount: Optional[float] = None
+
+
 class ReplayBuffer:
+    """
+    Replay buffer for sampling past transitions
+    TODO: move different sampling modes into subclasses
+    """
 
     def __init__(self,
                  max_size=20000,
@@ -88,7 +104,7 @@ class ReplayBuffer:
             raise Exception("Invalid mode: {}".format(self.mode))
 
         if self.mode in ('uniform', 'spr'):
-            self.queue = []
+            self.queue : List[Transition] = []
         elif self.mode == 'proportional':
             self.arr = [None] * max_size
             self.index = 0
@@ -100,7 +116,7 @@ class ReplayBuffer:
         else:
             raise NotImplementedError()
 
-    def add(self, obs):
+    def add(self, obs: Transition):
         self.counter += 1
         if self.mode in ('uniform', 'spr'):
             if len(self.queue) >= self.max_size:
@@ -126,8 +142,7 @@ class ReplayBuffer:
             def collect(idx): # collect samples until end of episode or step limit reached
                 res = [self.queue[idx]]
                 i = 1
-                while i < self.steps and self.queue[idx+i-1][3] > 0 and self.queue[idx+i-1][2] <= 0 and idx+i < len(self.queue):
-                    # TODO: a bit sketchy, use a dataclass rather than tuple
+                while i < self.steps and self.queue[idx+i-1].discount > 0 and self.queue[idx+i-1].reward <= 0 and idx+i < len(self.queue):
                     # we do this so as to not ask the model to predict past end of episode / appearance of new apple for snake as it is stochastic
                     res.append(self.queue[idx+i])
                     i += 1
