@@ -5,6 +5,7 @@ astunparse==1.6.3
 async-generator==1.10
 atari-py==0.2.9
 attrs==21.2.0
+autopep8==1.6.0
 backcall==0.2.0
 bleach==3.3.0
 box2d-py==2.3.8
@@ -73,6 +74,7 @@ protobuf==3.17.3
 ptyprocess==0.7.0
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
+pycodestyle==2.8.0
 pycparser==2.20
 pyglet==1.5.15
 Pygments==2.9.0
@@ -96,6 +98,7 @@ tensorflow-estimator==2.5.0
 termcolor==1.1.0
 terminado==0.10.1
 testpath==0.5.0
+toml==0.10.2
 tornado==6.1
 tqdm==4.61.1
 traitlets==5.0.5

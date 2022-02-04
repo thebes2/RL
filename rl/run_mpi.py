@@ -17,11 +17,6 @@ from utils.mpi import average_gradients, broadcast_model
 
 from .models import get_policy_architecture, get_value_architecture
 
-os.environ[
-    "CUDA_VISIBLE_DEVICES"
-] = "-1"  #### REMOVE THIS LINE WHEN CUDA CONFIG IS FIXED
-
-
 sys.path.insert(0, "..")
 
 envs = os.listdir("configs")
@@ -47,8 +42,6 @@ if mpi:
     rnk = comm.Get_rank()
 
 
-# tetris = importlib.import_module('pytris-effect.src.gameui')
-
 args = parser.parse_args()
 task = args.task
 algo = args.algo
@@ -66,6 +59,7 @@ ckpt_folder = os.path.join("checkpoints")
 
 env_name = config["env"]
 if task == "tetris":
+    tetris = importlib.import_module("pytris-effect.src.gameui")
     env = tetris.GameUI(
         graphic_mode=False, its_per_sec=8, sec_per_tick=0.25, colour_mode="mono"
     )

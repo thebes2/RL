@@ -220,7 +220,8 @@ class DQN_agent:
 
     def collect_rollout(
         self, t_max=10000, policy=None, silenced=True, train=False, display=False
-    ):
+    ) -> float:
+        """Collects a rollout of experience with maximum length t_max, and returns the (undiscounted) reward"""
         if silenced:
             self.detach_stdout()
         obs = self.preprocess(self.env.reset())

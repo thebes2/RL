@@ -8,7 +8,7 @@ from utils.Loader import load_agent
 
 def load(run_name, env, config=dict()):
     return load_agent(
-        os.path.join("configs", env + ".json"),
+        os.path.join("configs", (env or "") + ".json"),
         run_name=run_name,
         ckpt_folder=os.path.join("checkpoints"),
         config=config,
