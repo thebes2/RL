@@ -12,6 +12,7 @@ from rl.models import get_policy_architecture
 from utils.Buffer import ReplayBuffer, Transition
 from utils.Callbacks import get_callbacks
 from utils.Env import get_env
+from utils.logger import logger
 
 
 class DQN_agent:
@@ -252,7 +253,6 @@ class DQN_agent:
             )
             oo, rr, dn, info = self.env.step(self.action_wrapper(act))
             if display:
-                # print(self.get_model(obs))
                 self.env.render()
             rt += g * rr
             oo = self.preprocess(oo)
@@ -432,13 +432,13 @@ class DQN_agent:
             if t % epochs_per_log == epochs_per_log - 1:
                 avg_reward /= epochs_per_log
                 if logging:
-                    print("[{}] Average reward: {}".format(t + 1, avg_reward))
-                    print(
+                    logger.info("[{}] Average reward: {}".format(t + 1, avg_reward))
+                    logger.log(
                         "Predicted reward: {}".format(
                             self.get_model(self.preprocess(self.env.reset()))
                         )
                     )
-                    print("Buffer size: {}".format(self.buffer.size()))
+                    logger.log("Buffer size: {}".format(self.buffer.size()))
                 avg_reward = 0
                 self.save_to_checkpoint(logging)
 
@@ -476,6 +476,6 @@ class DQN_agent:
 
     def save_to_checkpoint(self, logging=True):
         if logging:
-            print("Saving to checkpoint...")
+            logger.warning("Saving to checkpoint...")
         assert self.ckpt_manager is not None
         self.ckpt_manager.save()
