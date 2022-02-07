@@ -1,5 +1,5 @@
 {
-	"learning_rate": 0.00005,
+	"learning_rate": 0.00001,
 	"n_actions": 4,
 	"train_epochs": 20000,
 	"env": "gym_snake:snake-v0",
@@ -10,10 +10,11 @@
 	"update_steps": 1,
 	"alpha": 0.6,
 	"beta": 0.5,
-	"delta": 1.0,
-	"target_delay": 750,
+	"delta": 0.00001,
+	"target_delay": 1,
 	"algo": [
-		"DDQN", "Dueling"
+		"DDQN",
+		"Dueling"
 	],
 	"callbacks": [
 		{
