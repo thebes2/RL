@@ -60,6 +60,19 @@ class SPR_agent(DQN_agent):
         for callback in self.callbacks:  # hack
             callback.on_init(self)
 
+    def checkpoint(self) -> tf.train.Checkpoint:
+        return tf.train.Checkpoint(
+            vision=self.vision,
+            vision_target=self.vision_target,
+            qlearning=self.qlearning,
+            qlearning_target=self.qlearning_target,
+            transition=self.transition,
+            projection=self.projection,
+            projection_target=self.projection_target,
+            prediction=self.prediction,
+            optimizer=self.optimizer,
+        )
+
     def get_model(self, obs, batch=False):
         obs = obs if batch else np.array([obs])
         preds = self.qlearning(self.vision(obs))
@@ -97,7 +110,9 @@ class SPR_agent(DQN_agent):
 
     def compute_single_loss(self, trajectory: List[Transition]):
         z_0 = self.vision(np.array([trajectory[0].state]))
-        cond = lambda i, _, __: i < len(trajectory)
+
+        def cond(i, _, __):
+            return i < len(trajectory)
 
         def step(i, z, l):
             oh = np.eye(self.config["n_actions"])[trajectory[i - 1].action]
@@ -134,7 +149,9 @@ class SPR_agent(DQN_agent):
             next(j for j in range(n) if len(trajectories[j]) <= i)
             for i in range(len(trajectories[0]))
         ]
-        cond = lambda i, _, __: i < len(trajectories[0])
+
+        def cond(i, _, __):
+            return i < len(trajectories[0])
 
         def step(i, z, loss):
             l = lst[i]
