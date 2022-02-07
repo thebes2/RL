@@ -4,6 +4,7 @@ from tqdm.auto import tqdm
 
 from rl.models import get_policy_architecture, get_vision_architecture
 from utils.Conv import ConvHead
+from utils.logger import logger
 
 
 class Callback:
@@ -117,8 +118,8 @@ class PretrainCallback(Callback):
             raise NotImplementedError("Invalid policy " + policy)
         self.policy = policy
 
-    def on_init(self, agent):
-        if agent.existing:
+    def on_init(self, agent) -> None:
+        if agent.existing or not agent.training:
             return
         head = get_vision_architecture(agent.raw_env_name)
         embed = tf.keras.layers.Dense(self.embed_dim, activation=None)(head.output)
@@ -138,11 +139,20 @@ class PretrainCallback(Callback):
                     break
 
         if self.policy == "random":
-            policy = lambda x: np.random.choice(agent.n_actions)
+
+            def policy(x):
+                return np.random.choice(agent.n_actions)
+
         elif self.policy == "eps-greedy":
-            policy = lambda x: agent.get_action(x)
+
+            def policy(x):
+                return agent.get_action(x)
+
         elif self.policy == "greedy":
-            policy = lambda x: agent.get_action(x, mode="greedy")
+
+            def policy(x):
+                return agent.get_action(x, mode="greedy")
+
         for _ in tqdm(range(self.episodes)):
             collect_rollout(agent.env, agent.t_max, policy)
 
@@ -166,11 +176,15 @@ class InitBufferCallback(Callback):
     def __init__(self, episodes=100):
         self.episodes = episodes
 
-    def on_init(self, agent):
+    def on_init(self, agent) -> None:
+        if not agent.training:
+            return
         for _ in range(self.episodes):
             agent.collect_rollout(
                 t_max=agent.t_max,
-                policy=lambda x: np.random.choice(agent.n_actions),
+                policy=(lambda x: np.random.choice(agent.n_actions))
+                if not agent.existing
+                else None,
                 train=False,
                 display=False,
             )

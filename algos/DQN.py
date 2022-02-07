@@ -53,6 +53,7 @@ class DQN_agent:
         self.raw_env_name = config.get("env", self.env_name)
         self.algo_name = str(config["algo"])
         self.run_name = config["run_name"]
+        self.training = True
         self.existing = False
 
         if "ckpt_folder" not in config:
@@ -65,7 +66,7 @@ class DQN_agent:
             model=self.model, target=self.target, optimizer=self.optimizer
         )
         self.ckpt_manager = tf.train.CheckpointManager(
-            self.ckpt, directory=self.ckpt_dir, max_to_keep=3
+            self.ckpt, directory=self.ckpt_dir, max_to_keep=5
         )
 
         self.load_from_checkpoint()
@@ -146,18 +147,27 @@ class DQN_agent:
             self.ckpt_dir = os.path.join(ckpt_folder, self.run_name)
         os.makedirs(self.ckpt_dir, exist_ok=True)
 
-        self.ckpt = tf.train.Checkpoint(
-            model=self.model, target=self.target, optimizer=self.optimizer
-        )
-        self.ckpt_manager = tf.train.CheckpointManager(
-            self.ckpt, directory=self.ckpt_dir, max_to_keep=3
-        )
+        self.ckpt_manager = None  # delay creation to allow subclass checkpointing
 
         self.update_counter = 0
 
         self.double_DQN = "DDQN" in self.mode
         self.prioritized_sampling = "PER" in self.mode
         self.noisy_DQN = "noisy" in self.mode
+
+    def checkpoint(self) -> tf.train.Checkpoint:
+        """Defines the tf objects to be tracked and checkpointed"""
+        return tf.train.Checkpoint(
+            model=self.model,
+            target=self.target,
+            optimizer=self.optimizer,
+        )
+
+    def train(self):
+        self.training = True
+
+    def eval(self):
+        self.training = False
 
     def set_model(self, model):
         self.model = model
@@ -442,8 +452,15 @@ class DQN_agent:
         self.model = tf.keras.models.load_model(model_path)
 
     def load_from_checkpoint(self):
-        if self.ckpt_manager.restore_or_initialize() is not None:
+        if (
+            self.ckpt_manager is None
+        ):  # delay registration until subclasses' models are created
+            self.ckpt_manager = tf.train.CheckpointManager(
+                self.checkpoint(), directory=self.ckpt_dir, max_to_keep=5
+            )
+        if len(self.ckpt_manager.checkpoints) > 0:
             self.existing = True
+        self.ckpt_manager.restore_or_initialize()
 
     def save(self, path=""):
         if len(path) == 0:
@@ -460,4 +477,5 @@ class DQN_agent:
     def save_to_checkpoint(self, logging=True):
         if logging:
             print("Saving to checkpoint...")
+        assert self.ckpt_manager is not None
         self.ckpt_manager.save()
