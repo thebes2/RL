@@ -1,0 +1,40 @@
+learning_rate: 0.00001
+n_actions: 4
+train_epochs: 20000
+env: "gym_snake:snake-v0"
+env_name: "snake"
+use_raw_env: false
+multistep: 5
+update_freq: 4
+alpha: 0.6
+beta: 0.5
+delta: 0.000005
+target_delay: 1
+latent_dim: 16
+algo:
+  - DDQN
+  - Dueling
+callbacks:
+  - type: PretrainCallback
+    kwargs:
+      episodes: 500
+      train_epochs: 6
+  - type: InitBufferCallback
+    kwargs:
+      samples: 5000
+  - type: AnnealingSchedulerCallback
+    kwargs:
+      target: epsilon
+      schedule:
+        - type: Schedule
+          kwargs:
+            length: 1000
+            start_val: 0.4
+            end_val: 0.1
+            fn: linear
+        - type: Schedule
+          kwargs:
+            length: 9000
+            start_val: 0.1
+            end_val: 0.01
+            fn: linear

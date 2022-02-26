@@ -52,7 +52,7 @@ def load_agent(
         config["time"] = str(datetime.now())
         config["ckpt_folder"] = ckpt_folder
         config["run_name"] = run_name
-        os.makedirs(os.path.join(ckpt_folder, run_name))
+        os.makedirs(os.path.join(ckpt_folder, run_name), exist_ok=True)
         write_config(os.path.join(ckpt_folder, run_name, "config.yaml"), config)
     else:
         logger.info("Loading existing run")

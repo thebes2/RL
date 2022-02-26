@@ -1,6 +1,16 @@
 import tensorflow as tf
 
 
+def load_model(model_config: dict, config: dict) -> tf.keras.Model:
+    """
+    Load model from config.
+    Assumes the model is always composed of convolutions followed by fully connected
+    """
+    _input = tf.keras.Input(shape=(config["n_actions"],))
+    _outputs = [_input]
+    # WIP
+
+
 def get_policy_architecture(env_name, algo="PPO", head=None, tail=None):
     if env_name == "CartPole-v0":
         if "Dueling" in algo:
@@ -172,7 +182,7 @@ def get_value_architecture(env_name):
     return value
 
 
-SNAKE_EMBED_DIM = 128
+SNAKE_EMBED_DIM = 32
 TETRIS_EMBED_DIM = 512
 
 

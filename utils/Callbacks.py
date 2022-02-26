@@ -11,7 +11,7 @@ from rl.models import (
     get_transition_architecture,
     get_vision_architecture,
 )
-from utils.Buffer import ReplayBuffer, Transition
+from utils.Buffer import ReplayBuffer, Transition, is_deterministic
 from utils.Conv import ConvHead
 from utils.logger import logger
 
@@ -381,21 +381,24 @@ class InitBufferCallback(Callback):
     under a random policy
     """
 
-    def __init__(self, episodes=100):
-        self.episodes = episodes
+    def __init__(self, samples=1000):
+        self.samples = samples
 
     def on_init(self, agent) -> None:
         if not agent.training:
             return
-        for _ in range(self.episodes):
-            agent.collect_rollout(
-                t_max=agent.t_max,
-                policy=(lambda x: np.random.choice(agent.n_actions))
-                if not agent.existing
-                else None,
-                train=False,
-                display=False,
-            )
+        with tqdm(total=self.samples) as pbar:
+            while agent.buffer.size() < self.samples:
+                sz = agent.buffer.size()
+                agent.collect_rollout(
+                    t_max=agent.t_max,
+                    policy=(lambda x: np.random.choice(agent.n_actions))
+                    if not agent.existing
+                    else None,
+                    train=False,
+                    display=False,
+                )
+                pbar.update(agent.buffer.size() - sz)
 
 
 if __name__ == "__main__":

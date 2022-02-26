@@ -505,6 +505,7 @@ class DQN_agent:
                 self.target.load_weights(
                     os.path.join(self.ckpt_dir, "target_checkpoint")
                 )
+                self.existing = True
             except:
                 logger.warning("Failed to load from checkpoint")
 

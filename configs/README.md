@@ -44,6 +44,6 @@ Hyperparameters:
 
 ### Configs
 
-The default configuration is stored in `default.json`. Defining a parameter in a task-specific configuration file will override the default value.
+The default configuration is stored in `default.yaml`. Defining a parameter in a task-specific configuration file will override the default value.
 
 The default config creates a double DQN agent with dueling, Polyak updates for target network, and initializes the buffer with random episodes.
