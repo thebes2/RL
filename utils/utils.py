@@ -7,12 +7,13 @@ from PIL import Image
 from utils.Loader import load_agent
 
 
-def load(run_name, env=None, config=dict()):
+def load(run_name, env=None, config=dict(), override=False):
     return load_agent(
         os.path.join("configs", (env or "") + ".json"),
         run_name=run_name,
         ckpt_folder=os.path.join("checkpoints"),
         config=config,
+        override=override,
     )
 
 

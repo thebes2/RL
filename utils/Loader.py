@@ -11,7 +11,9 @@ from utils.logger import logger
 DEFAULT_CONFIG_PATH = "configs/default.json"
 
 
-def load_agent(cfg_path, run_name, ckpt_folder="checkpoints", config=dict()):
+def load_agent(
+    cfg_path, run_name, ckpt_folder="checkpoints", config=dict(), override=False
+):
     if run_name is None:
         with open(cfg_path, "r") as f:
             tconf = json.load(f)
@@ -20,7 +22,7 @@ def load_agent(cfg_path, run_name, ckpt_folder="checkpoints", config=dict()):
             "-".join(tconf["algo"]),
             datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
         )
-    if not os.path.exists(os.path.join(ckpt_folder, run_name)):
+    if not os.path.exists(os.path.join(ckpt_folder, run_name)) or override:
         logger.warning("Creating new run")
         with open(cfg_path, "r") as f:
             fconf = json.load(f)
