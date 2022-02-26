@@ -9,14 +9,17 @@ class Logger:
     """
 
     def __init__(self, file=None):
-        self.out_file = open(file, "a") if file is not None else None
+        self.out_file = open(file, "a+") if file is not None else None
 
     def __del__(self):
         if self.out_file is not None:
             self.out_file.close()
 
+    def set_file_output(self, file):
+        self.out_file = open(file, "a+")
+
     def _concat(*args):
-        return " ".join(list(map(repr, list(args))))
+        return " ".join(list(map(lambda x: repr(x)[1:-1], list(args))))
 
     def info(self, *args):
         print(Color.INFO.value, *args, Color.CLEAR.value)

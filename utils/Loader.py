@@ -45,6 +45,8 @@ def load_agent(cfg_path, run_name, ckpt_folder="checkpoints", config=dict()):
         for key, val in fconf.items():
             if key not in config:
                 config[key] = val
+
+    logger.set_file_output(os.path.join(ckpt_folder, run_name, "logs.txt"))
     return load_from_config(config)
 
 
@@ -58,5 +60,4 @@ def load_from_config(config):
     elif "PPO" in config["algo"]:
         raise NotImplementedError("PPO_agent cannot load from cfg yet")
         agent = PPO_agent(config)
-    agent.load_from_checkpoint()
     return agent

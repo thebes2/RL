@@ -23,7 +23,6 @@ class SPR_agent(DQN_agent):
     """
 
     def __init__(self, config):
-        super(SPR_agent, self).__init__(config)
 
         self.lam = config["lambda"]
 
@@ -38,9 +37,14 @@ class SPR_agent(DQN_agent):
         self.projection_target = get_projection_architecture(config["env"], cfg=config)
         self.prediction = get_prediction_architecture(config["env"], cfg=config)
 
+        super(SPR_agent, self).__init__(config)
+
         # TODO: change the default 'multistep' to always be 1
         self.buffer = ReplayBuffer(
-            num_samples=config["batch_size"], mode="spr", steps=config["_multistep"]
+            env=config["env_name"],
+            num_samples=config["batch_size"],
+            mode="spr",
+            steps=config["_multistep"],
         )
 
         self.trainable_variables = sum(  # do not directly train targets
@@ -153,6 +157,8 @@ class SPR_agent(DQN_agent):
         def cond(i, _, __):
             return i < len(trajectories[0])
 
+        eps = 1e-6
+
         def step(i, z, loss):
             l = lst[i]
             s = [traj[i] for traj in trajectories[:l]]
@@ -164,10 +170,10 @@ class SPR_agent(DQN_agent):
             y_pred = self.prediction(self.projection(z_pred))
             y_target = self.projection_target(z_target)
             y_pred = y_pred / tf.expand_dims(
-                tf.sqrt(tf.reduce_sum(tf.square(y_pred), 1)), -1
+                tf.sqrt(tf.reduce_sum(tf.square(y_pred), 1)) + eps, -1
             )
             y_target = y_target / tf.expand_dims(
-                tf.sqrt(tf.reduce_sum(tf.square(y_target), 1)), -1
+                tf.sqrt(tf.reduce_sum(tf.square(y_target), 1)) + eps, -1
             )
             return (
                 i + 1,

@@ -6,14 +6,14 @@ import matplotlib
 from utils.logger import logger
 from utils.utils import load
 
-matplotlib.use("Qt5Agg")
-
 
 def main(run_name: str, t_max: Optional[int]):
     agent = load(run_name=run_name, env=None)
     agent.eval()
 
-    reward = agent.collect_rollout(t_max=t_max, display=True)
+    reward = agent.collect_rollout(
+        t_max=t_max, display=False, silenced=False
+    )  # hack for now
 
     logger.success("Total reward: ", reward)
 

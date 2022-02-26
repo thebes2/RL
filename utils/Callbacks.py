@@ -1,8 +1,17 @@
+from typing import List
+
 import numpy as np
 import tensorflow as tf
 from tqdm.auto import tqdm
 
-from rl.models import get_policy_architecture, get_vision_architecture
+from rl.models import (
+    get_policy_architecture,
+    get_prediction_architecture,
+    get_projection_architecture,
+    get_transition_architecture,
+    get_vision_architecture,
+)
+from utils.Buffer import ReplayBuffer, Transition
 from utils.Conv import ConvHead
 from utils.logger import logger
 
@@ -133,7 +142,10 @@ class PretrainCallback(Callback):
                 act = policy(s)
                 ss, r, dn, _ = env.step(agent.action_wrapper(act))
                 ss = agent.preprocess(ss)
-                p_buf.append([s, ss])
+                if agent.env_name == "snake" and r > 0:
+                    pass
+                else:
+                    p_buf.append([s, ss])
                 s = ss
                 if dn:
                     break
@@ -163,6 +175,202 @@ class PretrainCallback(Callback):
         trained_model = tf.keras.Model(inputs=trainer.model.input, outputs=features)
         agent.set_model(
             get_policy_architecture(agent.raw_env_name, agent.algo, trained_model)
+        )
+
+
+class SPRPretrainCallback(Callback):
+    def __init__(
+        self,
+        episodes=100,
+        train_epochs=5,
+        learning_rate=3e-4,
+        delta=0.0001,
+        pred_len=10,
+        policy="random",
+    ):
+        super(SPRPretrainCallback, self).__init__()
+        self.episodes = episodes
+        self.train_epochs = train_epochs
+        self.learning_rate = learning_rate
+        self.policy = policy
+        if policy not in ("random", "greedy", "eps-greedy"):
+            raise NotImplementedError("Invalid policy " + policy)
+        self.delta = delta
+        self.pred_len = pred_len
+        self.config = dict()
+
+    def compute_loss(
+        self,
+        vision,
+        vision_target,
+        transition,
+        projection,
+        projection_target,
+        prediction,
+        trajectories: List[List[Transition]],
+    ):  # TODO: code is somewhat duplicated from SPR_agent here
+        def is_nan(t):
+            return tf.math.reduce_any(tf.math.is_nan(t))
+
+        inp = tf.stack([trajectories[i][0].state for i in range(len(trajectories))])
+
+        z_0 = vision(inp)
+        z_t = vision_target(inp)
+        y_pred = prediction(projection(z_0))
+        y_target = projection_target(z_t)
+        y_pred = y_pred / tf.expand_dims(
+            tf.sqrt(tf.reduce_sum(tf.square(y_pred), 1)), -1
+        )
+        y_target = y_target / tf.expand_dims(
+            tf.sqrt(tf.reduce_sum(tf.square(y_target), 1)), -1
+        )
+        loss = -tf.reduce_sum(tf.linalg.matmul(y_pred, y_target, transpose_b=True))
+
+        trajectories.append([])
+        n = len(trajectories)
+        lst = [
+            next(j for j in range(n) if len(trajectories[j]) <= i)
+            for i in range(len(trajectories[0]))
+        ]
+
+        def cond(i, _, __):
+            return i < len(trajectories[0])
+
+        eps = 1e-6
+
+        def step(i, z, loss):
+            l = lst[i]
+            s = [traj[i] for traj in trajectories[:l]]
+            act = [traj[i - 1].action for traj in trajectories[:l]]
+            oh = np.eye(self.config["n_actions"])[act]
+            inp = np.concatenate((z[:l], oh), axis=1)
+            z_pred = transition(inp)
+            z_target = vision_target(np.stack(map(lambda x: x.state, s)))
+            y_pred = prediction(projection(z_pred))
+            y_target = projection_target(z_target)
+            y_pred = y_pred / tf.expand_dims(
+                tf.sqrt(tf.reduce_sum(tf.square(y_pred), 1)) + eps, -1
+            )
+            y_target = y_target / tf.expand_dims(
+                tf.sqrt(tf.reduce_sum(tf.square(y_target), 1)) + eps, -1
+            )
+            # print(loss)
+            return (
+                i + 1,
+                z_pred,
+                loss
+                - tf.reduce_sum(tf.linalg.matmul(y_pred, y_target, transpose_b=True)),
+            )
+
+        _, _, loss = tf.while_loop(cond, step, (1, z_0, loss))
+        return loss / sum(lst) / self.config["latent_dim"]
+
+    def average_weights(model, target, delta):
+        model_weights = model.get_weights()
+        target_weights = target.get_weights()
+        target.set_weights(
+            list(
+                map(
+                    lambda x: delta * x[0] + (1.0 - delta) * x[1],
+                    zip(model_weights, target_weights),
+                )
+            )
+        )
+
+    def on_init(self, agent) -> None:
+        if agent.existing or not agent.training:
+            return
+
+        self.config = agent.config
+
+        buffer = ReplayBuffer(env=agent.env_name, mode="spr", steps=self.pred_len)
+        vision = get_vision_architecture(agent.raw_env_name, algo=agent.algo)
+        vision_target = get_vision_architecture(agent.raw_env_name)
+        transition = get_transition_architecture(agent.raw_env_name, cfg=agent.config)
+        projection = get_projection_architecture(agent.raw_env_name, cfg=agent.config)
+        projection_target = get_projection_architecture(
+            agent.raw_env_name, cfg=agent.config
+        )
+        prediction = get_prediction_architecture(agent.raw_env_name, cfg=agent.config)
+
+        optimizer = tf.keras.optimizers.Adam(
+            learning_rate=self.learning_rate, clipnorm=1.0
+        )
+
+        trainable_variables = sum(  # do not directly train targets
+            (
+                model.trainable_variables
+                for model in (
+                    vision,
+                    transition,
+                    projection,
+                    prediction,
+                )
+            ),
+            [],
+        )
+
+        def collect_rollout(env, t_max, policy):
+            s = agent.preprocess(env.reset())
+            for _ in range(t_max):
+                act = policy(s)
+                ss, r, dn, _ = env.step(agent.action_wrapper(act))
+                ss = agent.preprocess(ss)
+                buffer.add(Transition(s, act, r, ss, 0.0 if dn else agent.gamma))
+                s = ss
+                if dn:
+                    break
+
+        if self.policy == "random":
+
+            def policy(x):
+                return np.random.choice(agent.n_actions)
+
+        elif self.policy == "eps-greedy":
+
+            def policy(x):
+                return agent.get_action(x)
+
+        elif self.policy == "greedy":
+
+            def policy(x):
+                return agent.get_action(x, mode="greedy")
+
+        for _ in tqdm(range(self.episodes), desc="Collecting rollouts"):
+            collect_rollout(agent.env, agent.t_max, policy)
+
+        for _ in (
+            pbar := tqdm(
+                range(buffer.size() // buffer.num_samples * self.train_epochs),
+                desc="Training SPR",
+            )
+        ):
+            samples = buffer.sample()
+            samples = list(sorted(samples, key=lambda l: len(l), reverse=True))
+            with tf.GradientTape() as tape:
+                loss = self.compute_loss(
+                    vision,
+                    vision_target,
+                    transition,
+                    projection,
+                    projection_target,
+                    prediction,
+                    samples,
+                )
+            pbar.set_postfix({"Loss": float(loss.numpy())})
+            grads = tape.gradient(loss, trainable_variables)
+            clipped_grads = (
+                grads  # [tf.clip_by_value(grad, -1.0, 1.0) for grad in grads]
+            )
+            optimizer.apply_gradients(zip(clipped_grads, trainable_variables))
+
+            SPRPretrainCallback.average_weights(vision, vision_target, self.delta)
+            SPRPretrainCallback.average_weights(
+                projection, projection_target, self.delta
+            )
+
+        agent.set_model(
+            get_policy_architecture(agent.raw_env_name, agent.algo, head=vision)
         )
 
 

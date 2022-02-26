@@ -2,11 +2,12 @@ import os
 
 import numpy as np
 from matplotlib import pyplot as plt
+from PIL import Image
 
 from utils.Loader import load_agent
 
 
-def load(run_name, env, config=dict()):
+def load(run_name, env=None, config=dict()):
     return load_agent(
         os.path.join("configs", (env or "") + ".json"),
         run_name=run_name,
@@ -64,3 +65,8 @@ def plot_runs(*args):
         plt.fill_between(range(n), p25, p75, alpha=0.5)
         medians.append(med)
     plot_series(*medians)
+
+
+def draw_matrix(mat):
+    img = Image.fromarray(mat, "RGB")
+    img.show()

@@ -1,8 +1,32 @@
 {
-	"learning_rate": 0.0003,
-	"minibatch_size": 32,
+	"learning_rate": 0.00001,
+	"n_actions": 7,
 	"t_max": 500,
 	"train_epochs": 1000,
 	"env": "tetris",
-	"env_name": "tetris"
+	"env_name": "tetris",
+	"multistep": 5,
+	"update_freq": 4,
+	"update_steps": 1,
+	"delta": 0.00001,
+	"latent_dim": 32,
+	"algo": [
+		"DDQN",
+		"Dueling"
+	],
+	"callbacks": [
+		{
+			"type": "InitBufferCallback",
+			"kwargs": {
+				"episodes": 15
+			}
+		},
+		{
+			"type": "SPRPretrainCallback",
+			"kwargs": {
+				"episodes": 100,
+				"train_epochs": 4
+			}
+		}
+	]
 }

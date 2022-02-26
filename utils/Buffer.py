@@ -82,6 +82,13 @@ class Transition:
     discount: Optional[float] = None
 
 
+def is_deterministic(transition: Transition, env: str = "snake") -> bool:
+    """Returns if a transition is deterministic/stochastic for a certain game so we can avoid unrolling it during SPR pretraining"""
+    if env == "snake":
+        return transition.discount > 0 and transition.reward <= 0
+    return True
+
+
 class ReplayBuffer:
     """
     Replay buffer for sampling past transitions
@@ -90,6 +97,7 @@ class ReplayBuffer:
 
     def __init__(
         self,
+        env=None,
         max_size=20000,
         num_samples=128,
         samples_per_rebuild=10000,
@@ -97,6 +105,7 @@ class ReplayBuffer:
         mode="uniform",
         steps=1,
     ):
+        self.env = env
         self.max_size = max_size
         self.num_samples = num_samples
         self.mode = mode
@@ -105,6 +114,8 @@ class ReplayBuffer:
         self.samples = 0
         if self.mode not in ("uniform", "rank", "proportional", "spr"):
             raise Exception("Invalid mode: {}".format(self.mode))
+
+        np.random.seed(1234)
 
         if self.mode in ("uniform", "spr"):
             self.queue: List[Transition] = []
@@ -150,8 +161,7 @@ class ReplayBuffer:
                 i = 1
                 while (
                     i < self.steps
-                    and self.queue[idx + i - 1].discount > 0
-                    and self.queue[idx + i - 1].reward <= 0
+                    and is_deterministic(self.queue[idx + i - 1], self.env)
                     and idx + i < len(self.queue)
                 ):
                     # we do this so as to not ask the model to predict past end of episode / appearance of new apple for snake as it is stochastic

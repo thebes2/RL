@@ -1,4 +1,5 @@
 {
+    "use_raw_env": false,
     "learning_rate": 0.001,
     "minibatch_size": 50,
     "batch_size": 64,

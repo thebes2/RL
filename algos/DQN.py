@@ -19,9 +19,12 @@ class DQN_agent:
     def __init__(self, config):
         self.config = config
 
-        self.model = get_policy_architecture(config["env"], algo=config["algo"])
+        self.model: tf.keras.Model = get_policy_architecture(
+            config["env"], algo=config["algo"]
+        )
         self.buffer = ReplayBuffer(
-            config["max_buf_size"],
+            env=config["env_name"],
+            max_size=config["max_buf_size"],
             mode="proportional" if "PER" in config["algo"] else "uniform",
         )
         self.env = get_env(config["env"], config["use_raw_env"])
@@ -65,21 +68,17 @@ class DQN_agent:
 
         self.ckpt = tf.train.Checkpoint(
             model=self.model, target=self.target, optimizer=self.optimizer
-        )
+        )  # self.checkpoint()
         self.ckpt_manager = tf.train.CheckpointManager(
             self.ckpt, directory=self.ckpt_dir, max_to_keep=5
         )
-
-        self.load_from_checkpoint()
+        self.load_from_checkpoint(manual=True)
 
         self.update_counter = 0
 
         self.double_DQN = "DDQN" in self.algo
         self.prioritized_sampling = "PER" in self.algo
         self.noisy_DQN = "noisy" in self.algo
-
-        for callback in self.callbacks:
-            callback.on_init(self)
 
     # the old init method for backwards compatibility
     def init(
@@ -105,7 +104,7 @@ class DQN_agent:
         run_name=None,
         ckpt_folder=None,
         callbacks=[],
-        **kwargs
+        **kwargs,
     ):
         self.model = model
         self.buffer = buffer
@@ -216,6 +215,43 @@ class DQN_agent:
         #    return np.array(obs.astype(np.float32)[::5,::5]/127.0-1.0)
         return obs
 
+    def data_preprocess(self, samples):
+        # TODO: refactor
+        def flip(state, dim):
+            return tf.reverse(state, dim)
+
+        def mirror(state):
+            return tf.transpose(state, perm=[1, 0, 2])
+
+        def augment(state, action, reward, p, ss):
+            rand = np.random.random((3,))
+            if rand[0] > 0.5:
+                state = flip(state, [0])
+                ss = flip(ss, [0])
+                if action % 2 == 0:
+                    action = (action + 2) % 4  # hack that only works for snake
+            if rand[1] > 0.5:
+                state = flip(state, [1])
+                ss = flip(ss, [1])
+                if action % 2 == 1:
+                    action = 1 if action == 3 else 3
+            if rand[2] > 0.5:
+                state = mirror(state)
+                ss = mirror(ss)
+                if action in (0, 3):
+                    action = 3 if action == 0 else 0
+                else:
+                    action = 2 if action == 1 else 1
+            return Transition(state, action, reward, ss, p)
+
+        if self.env_name == "snake":
+            return [
+                augment(s.state, s.action, s.reward, s.discount, s.next)
+                for s in samples
+            ]
+        else:
+            return samples
+
     def action_wrapper(self, action):
         """Some environments take actions in weird formats"""
         if self.env_name == "snake":
@@ -279,11 +315,7 @@ class DQN_agent:
                 g *= self.gamma
 
             # (TODO): arbitrarily chosen for now
-            if (
-                train
-                and self.buffer.size() > 2 * self.batch_size
-                and (i + 1) % self.update_freq == 0
-            ):
+            if train and (i + 1) % self.update_freq == 0:
                 for _ in range(self.update_steps):
                     self.update_model_step()
 
@@ -314,8 +346,9 @@ class DQN_agent:
         return r
 
     def unpack(self, samples: List[Transition]):
+        augmented = self.data_preprocess(samples)
         s, a, r, p, ss = [], [], [], [], []
-        for sample in samples:
+        for sample in augmented:
             s.append(sample.state)
             a.append(sample.action)
             r.append(sample.reward)
@@ -351,6 +384,8 @@ class DQN_agent:
         return (loss, tf.abs(delta)) if self.prioritized_sampling else loss
 
     def update_model_step(self):
+        if not self.training:
+            return
         self.update_counter += 1
         if self.prioritized_sampling:
             idxs, w, samples = self.buffer.sample(
@@ -415,12 +450,15 @@ class DQN_agent:
         self.update_target_step()
 
     def train(self, epochs=None, t_max=None, logging=True, display=False):
+        if self.update_counter == 0:  # hack to call init if not done so already
+            for callback in self.callbacks:
+                callback.on_init(self)
         if epochs is None:
             epochs = self.config.get("train_epochs", 1000)
         if t_max is None:
             t_max = self.config.get("t_max", 10000)
         avg_reward = 0.0
-        epochs_per_log = 5
+        epochs_per_log = min(25, epochs / 10)
         hist = []
         for t in tqdm(range(epochs), desc="Training epochs"):
             reward = self.collect_rollout(
@@ -440,7 +478,8 @@ class DQN_agent:
                     )
                     logger.log("Buffer size: {}".format(self.buffer.size()))
                 avg_reward = 0
-                self.save_to_checkpoint(logging)
+                self.save_to_checkpoint(logging, manual=True)
+                self.load_from_checkpoint(manual=True)
 
             for callback in self.callbacks:
                 callback.on_episode_end(self)
@@ -451,16 +490,18 @@ class DQN_agent:
         model_path = os.path.join(path, "model.h5")
         self.model = tf.keras.models.load_model(model_path)
 
-    def load_from_checkpoint(self):
-        if (
-            self.ckpt_manager is None
-        ):  # delay registration until subclasses' models are created
-            self.ckpt_manager = tf.train.CheckpointManager(
-                self.checkpoint(), directory=self.ckpt_dir, max_to_keep=5
-            )
-        if len(self.ckpt_manager.checkpoints) > 0:
-            self.existing = True
-        self.ckpt_manager.restore_or_initialize()
+    def load_from_checkpoint(self, manual=False):
+        if not manual:
+            if len(self.ckpt_manager.checkpoints) > 0:
+                logger.info(
+                    f"Found existing checkpoint {self.ckpt_manager.latest_checkpoint}"
+                )
+                self.existing = True
+            status = self.checkpoint().restore(self.ckpt_manager.latest_checkpoint)
+            status.expect_partial()
+        else:
+            self.model.load_weights(os.path.join(self.ckpt_dir, "model_checkpoint"))
+            self.target.load_weights(os.path.join(self.ckpt_dir, "target_checkpoint"))
 
     def save(self, path=""):
         if len(path) == 0:
@@ -474,8 +515,15 @@ class DQN_agent:
         model_path = os.path.join(path, "model.h5")
         self.model.save(model_path)
 
-    def save_to_checkpoint(self, logging=True):
+    def save_to_checkpoint(self, logging=True, manual=False):
+        if not self.training:
+            return
         if logging:
-            logger.warning("Saving to checkpoint...")
+            logger.log("Saving to checkpoint...")
+
+        if manual:
+            self.model.save_weights(os.path.join(self.ckpt_dir, "model_checkpoint"))
+            self.target.save_weights(os.path.join(self.ckpt_dir, "target_checkpoint"))
+
         assert self.ckpt_manager is not None
         self.ckpt_manager.save()
