@@ -8,13 +8,22 @@ from utils.Loader import load_agent
 
 
 def load(run_name, env=None, config=dict(), override=False):
-    return load_agent(
-        os.path.join("configs", (env or "") + ".json"),
-        run_name=run_name,
-        ckpt_folder=os.path.join("checkpoints"),
-        config=config,
-        override=override,
-    )
+    try:
+        return load_agent(
+            os.path.join("configs", (env or "") + ".yaml"),
+            run_name=run_name,
+            ckpt_folder=os.path.join("checkpoints"),
+            config=config,
+            override=override,
+        )
+    except FileNotFoundError:  # TODO: fallback to json during migration
+        return load_agent(
+            os.path.join("configs", (env or "") + ".json"),
+            run_name=run_name,
+            ckpt_folder=os.path.join("checkpoints"),
+            config=config,
+            override=override,
+        )
 
 
 def get_runs(base_name, runs, epochs, env, cfg):

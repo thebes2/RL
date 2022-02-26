@@ -500,8 +500,13 @@ class DQN_agent:
             status = self.checkpoint().restore(self.ckpt_manager.latest_checkpoint)
             status.expect_partial()
         else:
-            self.model.load_weights(os.path.join(self.ckpt_dir, "model_checkpoint"))
-            self.target.load_weights(os.path.join(self.ckpt_dir, "target_checkpoint"))
+            try:
+                self.model.load_weights(os.path.join(self.ckpt_dir, "model_checkpoint"))
+                self.target.load_weights(
+                    os.path.join(self.ckpt_dir, "target_checkpoint")
+                )
+            except:
+                logger.warning("Failed to load from checkpoint")
 
     def save(self, path=""):
         if len(path) == 0:
