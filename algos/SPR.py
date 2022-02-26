@@ -1,3 +1,4 @@
+import os
 import random
 from typing import List
 
@@ -13,6 +14,7 @@ from rl.models import (
     get_vision_architecture,
 )
 from utils.Buffer import ReplayBuffer, Transition
+from utils.logger import logger
 
 
 class SPR_agent(DQN_agent):
@@ -60,9 +62,6 @@ class SPR_agent(DQN_agent):
             ),
             [],
         )
-
-        for callback in self.callbacks:  # hack
-            callback.on_init(self)
 
     def checkpoint(self) -> tf.train.Checkpoint:
         return tf.train.Checkpoint(
@@ -223,3 +222,69 @@ class SPR_agent(DQN_agent):
         self.average_weights(self.vision, self.vision_target, self.delta)
         self.average_weights(self.projection, self.projection_target, self.delta)
         self.average_weights(self.qlearning, self.qlearning_target, self.delta)
+
+    def load_from_checkpoint(self, manual=False):  # TODO: temp fix for SPR
+        if not manual:
+            if len(self.ckpt_manager.checkpoints) > 0:
+                logger.info(
+                    f"Found existing checkpoint {self.ckpt_manager.latest_checkpoint}"
+                )
+                self.existing = True
+            status = self.checkpoint().restore(self.ckpt_manager.latest_checkpoint)
+            status.expect_partial()
+        else:
+            self.vision.load_weights(os.path.join(self.ckpt_dir, "vision_checkpoint"))
+            self.vision_target.load_weights(
+                os.path.join(self.ckpt_dir, "vision_target_checkpoint")
+            )
+            self.qlearning.load_weights(
+                os.path.join(self.ckpt_dir, "qlearning_checkpoint")
+            )
+            self.qlearning_target.load_weights(
+                os.path.join(self.ckpt_dir, "qlearning_target_checkpoint")
+            )
+            self.transition.load_weights(
+                os.path.join(self.ckpt_dir, "transition_checkpoint")
+            )
+            self.projection.load_weights(
+                os.path.join(self.ckpt_dir, "projection_checkpoint")
+            )
+            self.projection_target.load_weights(
+                os.path.join(self.ckpt_dir, "projection_target_checkpoint")
+            )
+            self.prediction.load_weights(
+                os.path.join(self.ckpt_dir, "prediction_checkpoint")
+            )
+
+    def save_to_checkpoint(self, logging=True, manual=False):
+        if not self.training:
+            return
+        if logging:
+            logger.log("Saving to checkpoint...")
+
+        if manual:
+            self.vision.save_weights(os.path.join(self.ckpt_dir, "vision_checkpoint"))
+            self.vision_target.save_weights(
+                os.path.join(self.ckpt_dir, "vision_target_checkpoint")
+            )
+            self.qlearning.save_weights(
+                os.path.join(self.ckpt_dir, "qlearning_checkpoint")
+            )
+            self.qlearning_target.save_weights(
+                os.path.join(self.ckpt_dir, "qlearning_target_checkpoint")
+            )
+            self.transition.save_weights(
+                os.path.join(self.ckpt_dir, "transition_checkpoint")
+            )
+            self.projection.save_weights(
+                os.path.join(self.ckpt_dir, "projection_checkpoint")
+            )
+            self.projection_target.save_weights(
+                os.path.join(self.ckpt_dir, "projection_target_checkpoint")
+            )
+            self.prediction.save_weights(
+                os.path.join(self.ckpt_dir, "prediction_checkpoint")
+            )
+
+        assert self.ckpt_manager is not None
+        self.ckpt_manager.save()
