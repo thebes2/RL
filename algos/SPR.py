@@ -63,7 +63,7 @@ class SPR_agent(DQN_agent):
             [],
         )
 
-    def checkpoint(self) -> tf.train.Checkpoint:
+    def checkpoint(self):
         return tf.train.Checkpoint(
             vision=self.vision,
             vision_target=self.vision_target,
@@ -174,15 +174,10 @@ class SPR_agent(DQN_agent):
             y_target = y_target / tf.expand_dims(
                 tf.sqrt(tf.reduce_sum(tf.square(y_target), 1)) + eps, -1
             )
-            return (
-                i + 1,
-                z_pred,
-                loss
-                - tf.reduce_sum(tf.linalg.matmul(y_pred, y_target, transpose_b=True)),
-            )
+            return (i + 1, z_pred, loss - tf.reduce_sum(tf.multiply(y_pred, y_target)))
 
         _, _, loss = tf.while_loop(cond, step, (1, z_0, 0.0))
-        return loss / sum(lst) / self.config["latent_dim"]
+        return loss / sum(lst)
 
     def compute_model_loss(self, samples: List[List[Transition]]):
         loss = 0.0
@@ -233,28 +228,36 @@ class SPR_agent(DQN_agent):
             status = self.checkpoint().restore(self.ckpt_manager.latest_checkpoint)
             status.expect_partial()
         else:
-            self.vision.load_weights(os.path.join(self.ckpt_dir, "vision_checkpoint"))
-            self.vision_target.load_weights(
-                os.path.join(self.ckpt_dir, "vision_target_checkpoint")
-            )
-            self.qlearning.load_weights(
-                os.path.join(self.ckpt_dir, "qlearning_checkpoint")
-            )
-            self.qlearning_target.load_weights(
-                os.path.join(self.ckpt_dir, "qlearning_target_checkpoint")
-            )
-            self.transition.load_weights(
-                os.path.join(self.ckpt_dir, "transition_checkpoint")
-            )
-            self.projection.load_weights(
-                os.path.join(self.ckpt_dir, "projection_checkpoint")
-            )
-            self.projection_target.load_weights(
-                os.path.join(self.ckpt_dir, "projection_target_checkpoint")
-            )
-            self.prediction.load_weights(
-                os.path.join(self.ckpt_dir, "prediction_checkpoint")
-            )
+            try:
+                self.vision.load_weights(
+                    os.path.join(self.ckpt_dir, "vision_checkpoint")
+                )
+                self.vision_target.load_weights(
+                    os.path.join(self.ckpt_dir, "vision_target_checkpoint")
+                )
+                self.qlearning.load_weights(
+                    os.path.join(self.ckpt_dir, "qlearning_checkpoint")
+                )
+                self.qlearning_target.load_weights(
+                    os.path.join(self.ckpt_dir, "qlearning_target_checkpoint")
+                )
+                self.transition.load_weights(
+                    os.path.join(self.ckpt_dir, "transition_checkpoint")
+                )
+                self.projection.load_weights(
+                    os.path.join(self.ckpt_dir, "projection_checkpoint")
+                )
+                self.projection_target.load_weights(
+                    os.path.join(self.ckpt_dir, "projection_target_checkpoint")
+                )
+                self.prediction.load_weights(
+                    os.path.join(self.ckpt_dir, "prediction_checkpoint")
+                )
+                self.existing = True
+            except ValueError:
+                logger.error("Checkpoint is incompatible with current model")
+            except FileNotFoundError:
+                logger.warning("Failed to load from checkpoint")
 
     def save_to_checkpoint(self, logging=True, manual=False):
         if not self.training:

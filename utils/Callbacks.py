@@ -127,7 +127,7 @@ class PretrainCallback(Callback):
             raise NotImplementedError("Invalid policy " + policy)
         self.policy = policy
 
-    def on_init(self, agent) -> None:
+    def on_init(self, agent):
         if agent.existing or not agent.training:
             return
         head = get_vision_architecture(agent.raw_env_name)
@@ -254,12 +254,10 @@ class SPRPretrainCallback(Callback):
             y_target = y_target / tf.expand_dims(
                 tf.sqrt(tf.reduce_sum(tf.square(y_target), 1)) + eps, -1
             )
-            # print(loss)
             return (
                 i + 1,
                 z_pred,
-                loss
-                - tf.reduce_sum(tf.linalg.matmul(y_pred, y_target, transpose_b=True)),
+                loss - tf.reduce_sum(tf.multiply(y_pred, y_target)),
             )
 
         _, _, loss = tf.while_loop(cond, step, (1, z_0, loss))

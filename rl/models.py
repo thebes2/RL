@@ -259,15 +259,28 @@ def get_qlearning_architecture(env_name, algo=None):
     return model
 
 
+def get_normed_resblock(inp, dim: int, inner_dim: int):
+    hidden = tf.keras.layers.Dense(inner_dim, activation="relu")(inp)
+    hidden2 = tf.keras.layers.Dense(dim, activation=None)(hidden)
+    raw_out = inp + hidden2
+    out = tf.keras.layers.LayerNormalization()(raw_out)
+    return out
+
+
 def get_transition_architecture(env_name, algo=None, cfg={}):
 
     if env_name == "gym_snake:snake-v0":
         inp = tf.keras.Input(shape=(SNAKE_EMBED_DIM + cfg["n_actions"],))
-        hidden1 = tf.keras.layers.Dense(SNAKE_EMBED_DIM)(inp)
-        bn = tf.keras.layers.BatchNormalization()(hidden1)
-        act1 = tf.keras.layers.Activation("relu")(bn)
-        hidden2 = tf.keras.layers.Dense(SNAKE_EMBED_DIM, activation="relu")(act1)
-        model = tf.keras.Model(inputs=inp, outputs=hidden2, name="transition")
+        proj = tf.keras.layers.Dense(SNAKE_EMBED_DIM, activation="relu")(inp)
+        hidden1 = get_normed_resblock(proj, SNAKE_EMBED_DIM, 2 * SNAKE_EMBED_DIM)
+        hidden2 = get_normed_resblock(hidden1, SNAKE_EMBED_DIM, 2 * SNAKE_EMBED_DIM)
+        hidden3 = get_normed_resblock(hidden2, SNAKE_EMBED_DIM, 2 * SNAKE_EMBED_DIM)
+        out = tf.keras.layers.Activation("relu")(hidden3)
+        # hidden1 = tf.keras.layers.Dense(SNAKE_EMBED_DIM)(inp)
+        # bn = tf.keras.layers.BatchNormalization()(hidden1)
+        # act1 = tf.keras.layers.Activation("relu")(bn)
+        # hidden2 = tf.keras.layers.Dense(SNAKE_EMBED_DIM, activation="relu")(act1)
+        model = tf.keras.Model(inputs=inp, outputs=out, name="transition")
 
     elif env_name == "tetris":
         inp = tf.keras.Input(shape=(TETRIS_EMBED_DIM + cfg["n_actions"],))

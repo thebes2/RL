@@ -1,28 +1,24 @@
-learning_rate: 0.00005
+learning_rate: 0.0001
+batch_size: 64
 n_actions: 4
 train_epochs: 20000
-env: "gym_snake:snake-v0"
-env_name: "snake"
+max_bu_size: 40000
+env: gym_snake:snake-v0
+env_name: snake
 use_raw_env: false
-multistep: 5
+multistep: 1
+_multistep: 15
 update_freq: 4
-alpha: 0.6
-beta: 0.4
-delta: 0.00001
+update_steps: 1
+delta: 0.0001
+lambda: 1.0
 target_delay: 1
 latent_dim: 16
 algo:
   - DDQN
   - Dueling
+  - SPR
 callbacks:
-  # - type: PretrainCallback
-  #   kwargs:
-  #     episodes: 500
-  #     train_epochs: 6
-  - type: SPRPretrainCallback
-    kwargs:
-      episodes: 250
-      train_epochs: 12
   - type: InitBufferCallback
     kwargs:
       samples: 10000
