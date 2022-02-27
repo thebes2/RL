@@ -1,4 +1,4 @@
-learning_rate: 0.00001
+learning_rate: 0.00005
 n_actions: 4
 train_epochs: 20000
 env: "gym_snake:snake-v0"
@@ -7,8 +7,8 @@ use_raw_env: false
 multistep: 5
 update_freq: 4
 alpha: 0.6
-beta: 0.5
-delta: 0.000005
+beta: 0.4
+delta: 0.00001
 target_delay: 1
 latent_dim: 16
 algo:

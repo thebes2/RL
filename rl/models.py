@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 
-def load_model(model_config: dict, config: dict) -> tf.keras.Model:
+def load_model(model_config: dict, config: dict):
     """
     Load model from config.
     Assumes the model is always composed of convolutions followed by fully connected
@@ -182,7 +182,7 @@ def get_value_architecture(env_name):
     return value
 
 
-SNAKE_EMBED_DIM = 32
+SNAKE_EMBED_DIM = 64
 TETRIS_EMBED_DIM = 512
 
 
@@ -194,10 +194,12 @@ def get_vision_architecture(env_name, algo=None):
         conv1 = tf.keras.layers.Conv2D(32, (3, 3), activation="relu", padding="same")(
             ft
         )
-        conv2 = tf.keras.layers.Conv2D(64, (3, 3), activation="relu", padding="same")(
+        conv2 = tf.keras.layers.Conv2D(64, (5, 5), activation="relu", padding="same")(
             conv1
         )
-        features = tf.keras.layers.Flatten()(conv2)
+        local_features = tf.keras.layers.Flatten()(conv1)
+        large_features = tf.keras.layers.Flatten()(conv2)
+        features = tf.keras.layers.concatenate([local_features, large_features])
         fc1 = tf.keras.layers.Dense(SNAKE_EMBED_DIM, activation="relu")(features)
         model = tf.keras.Model(inputs=inp, outputs=fc1, name="vision")
 
@@ -225,9 +227,10 @@ def get_qlearning_architecture(env_name, algo=None):
     if env_name == "gym_snake:snake-v0":
         inp = tf.keras.Input(shape=(SNAKE_EMBED_DIM,))
         if "Dueling" in algo:
-            hidden = tf.keras.layers.Dense(64, activation="relu")(inp)
-            val = tf.keras.layers.Dense(1, activation="linear")(hidden)
-            adv = tf.keras.layers.Dense(4, activation="linear")(hidden)
+            hidden = tf.keras.layers.Dense(32, activation="relu")(inp)
+            hidden2 = tf.keras.layers.Dense(32, activation="relu")(hidden)
+            val = tf.keras.layers.Dense(1, activation="linear")(hidden2)
+            adv = tf.keras.layers.Dense(4, activation="linear")(hidden2)
             avg = tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, 1))(adv)
             out = tf.keras.layers.Add()([val, adv, -avg])
         else:
