@@ -7,7 +7,7 @@ from PIL import Image
 from utils.Loader import load_agent
 
 
-def load(run_name, env=None, config=dict(), override=False):
+def load(run_name, env=None, config=None, override=False):
     try:
         return load_agent(
             os.path.join("configs", (env or "") + ".yaml"),

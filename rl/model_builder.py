@@ -1,6 +1,7 @@
 import tensorflow as tf
 
-from rl.models import get_normed_resblock
+from rl.models import get_normed_resblock, get_policy_architecture
+from utils.logger import logger
 
 
 def build_policy(config: dict):
@@ -8,6 +9,11 @@ def build_policy(config: dict):
     Load model from config.
     Assumes the model is always composed of convolutions followed by fully connected
     """
+    if "input_shape" not in config or "qlearning_cfg" not in config:
+        logger.warning("Falling back to old model loader")
+        return get_policy_architecture(
+            env_name=config["env"], algo=config["algo"], config=config
+        )
     input_shape = config["input_shape"][:-1] + [
         config["input_shape"][-1] * config["n_frames"]
     ]
@@ -17,7 +23,7 @@ def build_policy(config: dict):
     if "vision_cfg" in config:
         _x = build_vision(config, _x, input_shape)
     if "qlearning_cfg" in config:
-        _x = build_qlearning(config, tf.shape(_x)[-1], _x)
+        _x = build_qlearning(config, None, _x)
     _outputs = _x
 
     return tf.keras.Model(
@@ -39,7 +45,11 @@ def build_vision(config: dict, _input=None, input_shape=None):
 
     n_layers = len(model_config["filters"])
     assert n_layers > 0
-    assert model_config["kernel_size"] == model_config["downsample_factor"] == n_layers
+    assert (
+        len(model_config["kernel_size"])
+        == len(model_config["downsample_factor"])
+        == n_layers
+    )
 
     if "keep_idxs" not in model_config:
         model_config["keep_idxs"] = range(n_layers)
@@ -49,28 +59,29 @@ def build_vision(config: dict, _input=None, input_shape=None):
 
     _x = _input
     features = []
-    for filter, kernel, downsample, keep in zip(
+    idx = 0
+    for filter, kernel, downsample in zip(
         model_config["filters"],
         model_config["kernel_size"],
         model_config["downsample_factor"],
-        model_config["keep_idxs"],
     ):
         _x = tf.keras.layers.Conv2D(filter, kernel, activation="relu", padding="same")(
             _x
         )
-        if keep:
+        if idx in model_config["keep_idxs"]:
             features.append(_x)
         if downsample > 1:
             _x = tf.keras.layers.MaxPool2D(
                 pool_size=(downsample, downsample), padding="same"
             )(_x)
+        idx += 1
 
     return tf.keras.layers.concatenate(
         [tf.keras.layers.Flatten()(feature) for feature in features]
     )
 
 
-def build_qlearning(config: dict, input_dim: int, _input=None):
+def build_qlearning(config: dict, input_dim: int = None, _input=None):
     """
     Build qlearning head from config.
     This is composed of a series of normed resblocks, followed by normal dense layers,
@@ -88,8 +99,9 @@ def build_qlearning(config: dict, input_dim: int, _input=None):
     for block in resblock_sizes:
         if input_dim != block:
             _x = tf.keras.layers.Dense(block, activation="relu")(_x)
+            input_dim = block
         # for simplicity, we will use 2*outer dim as the inner input dimension
-        _x = get_normed_resblock(_x, 2 * block, block)
+        _x = get_normed_resblock(_x, block, 2 * block)
 
     dense_sizes = model_config.get("dense_layers", [])
 

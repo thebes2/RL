@@ -1,0 +1,38 @@
+learning_rate: 0.0003
+minibatch_size: 20
+batch_size: 64
+n_actions: 4
+t_max: 500
+train_epochs: 400
+env: LunarLander-v2
+env_name: lunarlander
+use_raw_env: true
+multistep: 10
+target_delay: 1
+alpha: 0.6
+beta: 0.5
+delta: 0.0001
+algo:
+  - DDQN
+  - Dueling
+  - PER
+input_shape: [8]
+policy_cfg:
+  dense_layers:
+    - 128
+    - 128
+    - 64
+callbacks:
+  - type: InitBufferCallback
+    kwargs:
+      samples: 500
+  - type: AnnealingSchedulerCallback
+    kwargs:
+      target: epsilon
+      schedule:
+        - type: Schedule
+          kwargs:
+            length: 200
+            start_val: 0.4
+            end_val: 0.01
+            fn: linear

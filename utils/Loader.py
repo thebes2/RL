@@ -30,8 +30,9 @@ def write_config(path: str, config: dict):
 
 
 def load_agent(
-    cfg_path, run_name, ckpt_folder="checkpoints", config=dict(), override=False
+    cfg_path, run_name, ckpt_folder="checkpoints", config=None, override=False
 ):
+    config = config or dict()
     if run_name is None:
         tconf = read_config(cfg_path)
         run_name = "{}-{}-{}".format(
@@ -57,9 +58,9 @@ def load_agent(
     else:
         logger.info("Loading existing run")
         try:
-            fconf = read_config(os.path.join(ckpt_folder, run_name, "config.json"))
-        except FileNotFoundError:
             fconf = read_config(os.path.join(ckpt_folder, run_name, "config.yaml"))
+        except FileNotFoundError:
+            fconf = read_config(os.path.join(ckpt_folder, run_name, "config.json"))
         for key, val in fconf.items():
             if key not in config:
                 config[key] = val

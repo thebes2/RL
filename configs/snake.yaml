@@ -16,6 +16,14 @@ latent_dim: 16
 algo:
   - DDQN
   - Dueling
+input_shape: [15, 15, 3]
+vision_cfg:
+  filters: [32, 64]
+  kernel_size: [3, 5]
+  downsample_factor: [1, 1]
+  keep_idxs: [0, 1]
+qlearning_cfg:
+  dense_layers: [64, 32, 32]
 callbacks:
   - type: InitBufferCallback
     kwargs:
