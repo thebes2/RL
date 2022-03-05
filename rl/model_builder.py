@@ -8,16 +8,16 @@ def build_policy(config: dict):
     Load model from config.
     Assumes the model is always composed of convolutions followed by fully connected
     """
-    input_shape = config["input_shape"][:-1] + (
-        config["input_shape"][-1] * config["n_frames"],
-    )
+    input_shape = config["input_shape"][:-1] + [
+        config["input_shape"][-1] * config["n_frames"]
+    ]
 
     _input = tf.keras.Input(shape=input_shape)
     _x = _input
     if "vision_cfg" in config:
         _x = build_vision(config, _x, input_shape)
     if "qlearning_cfg" in config:
-        _x = build_qlearning(config, int(tf.shape(_x)[-1]), _x)
+        _x = build_qlearning(config, tf.shape(_x)[-1], _x)
     _outputs = _x
 
     return tf.keras.Model(

@@ -8,6 +8,7 @@ import numpy as np
 import tensorflow as tf
 from tqdm.auto import tqdm
 
+from rl.model_builder import build_policy
 from rl.models import get_policy_architecture
 from utils.Buffer import ReplayBuffer, Transition
 from utils.Callbacks import get_callbacks
@@ -18,11 +19,14 @@ from utils.Trainer import l2_loss
 
 class DQN_agent:
     def __init__(self, config):
+        # hacks for now
+        if "n_frames" not in config:
+            config["n_frames"] = 1
+        if "lambda" not in config:
+            config["lambda"] = 0
         self.config = config
 
-        self.model: tf.keras.Model = get_policy_architecture(
-            config["env"], algo=config["algo"], config=config
-        )
+        self.model: tf.keras.Model = build_policy(config)
         self.buffer = ReplayBuffer(
             env=config["env_name"],
             max_size=config["max_buf_size"],
