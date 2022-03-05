@@ -12,7 +12,7 @@ def main(run_name: str, t_max: Optional[int]):
     agent.eval()
 
     reward = agent.collect_rollout(
-        t_max=t_max, display=False, silenced=False
+        t_max=t_max, display=False, silenced=False, eval=True
     )  # hack for now
 
     logger.success("Total reward: ", reward)

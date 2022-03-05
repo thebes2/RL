@@ -2,7 +2,7 @@ import os
 import random
 import sys
 from datetime import datetime
-from typing import List
+from typing import List, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
@@ -13,6 +13,7 @@ from utils.Buffer import ReplayBuffer, Transition
 from utils.Callbacks import get_callbacks
 from utils.Env import get_env
 from utils.logger import logger
+from utils.Trainer import l2_loss
 
 
 class DQN_agent:
@@ -20,7 +21,7 @@ class DQN_agent:
         self.config = config
 
         self.model: tf.keras.Model = get_policy_architecture(
-            config["env"], algo=config["algo"]
+            config["env"], algo=config["algo"], config=config
         )
         self.buffer = ReplayBuffer(
             env=config["env_name"],
@@ -202,6 +203,17 @@ class DQN_agent:
         )
         return tf.random.categorical(tf.math.log(q), 1).numpy()
 
+    def pad_history(self, obs):
+        if self.env_name == "snake":
+            # pad history if insufficient
+            if obs.shape[-1] < 3 * self.config["n_frames"]:
+                padding = 3 * self.config["n_frames"] - obs.shape[-1]
+                return tf.concat(
+                    [tf.zeros(obs.shape[:-1] + (padding,), dtype=tf.float64), obs],
+                    axis=-1,
+                )
+        return obs
+
     def preprocess(self, obs):
         if self.env_name == "snake":  # subtract background colour
             return np.array(obs.astype(np.float32)[::10, ::10] / 255.0) - np.array(
@@ -266,11 +278,19 @@ class DQN_agent:
         sys.stdout = self._stdout
 
     def collect_rollout(
-        self, t_max=10000, policy=None, silenced=True, train=False, display=False
-    ) -> float:
+        self,
+        t_max=10000,
+        policy=None,
+        silenced=True,
+        train=False,
+        display=False,
+        add_buffer=True,
+        eval=False,
+    ) -> Union[float, Tuple[float, List]]:
         """Collects a rollout of experience with maximum length t_max, and returns the (undiscounted) reward"""
         if silenced:
             self.detach_stdout()
+
         obs = self.preprocess(self.env.reset())
         if display:
             self.env.render()
@@ -280,7 +300,12 @@ class DQN_agent:
         g = 1.0
         rt = 0
         queue = []
-        action_mode = "greedy" if self.noisy_DQN else "eps-greedy"
+        state_queue = [obs]
+        obs = self.pad_history(tf.concat(state_queue, axis=-1))
+        if self.noisy_DQN or eval:
+            action_mode = "greedy"
+        else:
+            action_mode = "eps-greedy"
         while i != t_max:
             act = (
                 self.get_action(obs, mode=action_mode)[0][0]
@@ -292,6 +317,8 @@ class DQN_agent:
                 self.env.render()
             rt += g * rr
             oo = self.preprocess(oo)
+            state_queue = (state_queue + [oo])[-self.config["n_frames"] :]
+            oo = self.pad_history(tf.concat(state_queue, axis=-1))
             queue.append((obs, act, rr))
             # switch to using multistep returns
             # self.buffer.add((obs, act, rr, 0.0 if dn else self.gamma, oo))
@@ -374,13 +401,9 @@ class DQN_agent:
         if self.prioritized_sampling:
             losses = losses * w
         loss = tf.reduce_mean(losses)
-        # print("\n\n", q_pred, y, loss)
-        if self.update_counter % 25 == 0:
-            # if tf.math.reduce_max(r) > 0:
-            #    print("\n\n\n")
-            #    print(q_pred, r, yy)
-            # print(tf.reduce_mean(tf.square(delta)))
-            pass
+
+        reg_loss = self.config["lambda"] * l2_loss(self.model)
+        loss = loss + reg_loss
         return (loss, tf.abs(delta)) if self.prioritized_sampling else loss
 
     def update_model_step(self):
@@ -471,9 +494,18 @@ class DQN_agent:
                 avg_reward /= epochs_per_log
                 if logging:
                     logger.info("[{}] Average reward: {}".format(t + 1, avg_reward))
+                    logger.info(
+                        "Evaluation reward: {}".format(
+                            self.collect_rollout(
+                                t_max=t_max, silenced=True, train=False, eval=True
+                            )
+                        )
+                    )
                     logger.log(
                         "Predicted reward: {}".format(
-                            self.get_model(self.preprocess(self.env.reset()))
+                            self.get_model(
+                                self.pad_history(self.preprocess(self.env.reset()))
+                            )
                         )
                     )
                     logger.log("Buffer size: {}".format(self.buffer.size()))
