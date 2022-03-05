@@ -18,6 +18,10 @@ gamma: 0.99
 algo:
   - "DDQN"
   - "Dueling"
+qlearning_cfg:
+  dense_layers:
+    - 32
+    - 32
 callbacks:
   - type: "InitBufferCallback"
     kwargs:

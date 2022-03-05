@@ -2,6 +2,12 @@ import numpy as np
 import tensorflow as tf
 
 
+def l2_loss(model: tf.keras.Model):
+    return tf.add_n(
+        [tf.nn.l2_loss(v) for v in model.trainable_variables if "bias" not in v.name]
+    )
+
+
 class Trainer:
     """
     A class for training a model

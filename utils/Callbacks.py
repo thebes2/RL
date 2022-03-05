@@ -355,6 +355,14 @@ class SPRPretrainCallback(Callback):
                     prediction,
                     samples,
                 )
+                reg_loss = 0.0001 * tf.add_n(
+                    [
+                        tf.nn.l2_loss(v)
+                        for v in trainable_variables
+                        if "bias" not in v.name
+                    ]
+                )
+                loss = loss + reg_loss
             pbar.set_postfix({"Loss": float(loss.numpy())})
             grads = tape.gradient(loss, trainable_variables)
             clipped_grads = (

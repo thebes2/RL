@@ -1,17 +1,7 @@
 import tensorflow as tf
 
 
-def load_model(model_config: dict, config: dict):
-    """
-    Load model from config.
-    Assumes the model is always composed of convolutions followed by fully connected
-    """
-    _input = tf.keras.Input(shape=(config["n_actions"],))
-    _outputs = [_input]
-    # WIP
-
-
-def get_policy_architecture(env_name, algo="PPO", head=None, tail=None):
+def get_policy_architecture(env_name, algo="PPO", head=None, tail=None, config=None):
     if env_name == "CartPole-v0":
         if "Dueling" in algo:
             inp = tf.keras.Input(shape=(4,))
@@ -57,9 +47,9 @@ def get_policy_architecture(env_name, algo="PPO", head=None, tail=None):
             ]
         )
     elif env_name == "gym_snake:snake-v0":
-        inp = tf.keras.Input(shape=(15, 15, 3))
+        inp = tf.keras.Input(shape=(15, 15, 3 * config["n_frames"]))
         if head is None:
-            head = get_vision_architecture(env_name)
+            head = get_vision_architecture(env_name, config=config)
         latent = head(inp)
         if tail is None:
             tail = get_qlearning_architecture(env_name, algo=algo)
@@ -68,7 +58,7 @@ def get_policy_architecture(env_name, algo="PPO", head=None, tail=None):
     elif env_name == "tetris":  # the final raid boss
         inp = tf.keras.Input(shape=(20, 10, 3))
         if head is None:
-            head = get_vision_architecture(env_name)
+            head = get_vision_architecture(env_name, config=config)
         latent = head(inp)
         if tail is None:
             tail = get_qlearning_architecture(env_name, algo=algo)
@@ -186,10 +176,10 @@ SNAKE_EMBED_DIM = 64
 TETRIS_EMBED_DIM = 512
 
 
-def get_vision_architecture(env_name, algo=None):
+def get_vision_architecture(env_name, config=None):
 
     if env_name == "gym_snake:snake-v0":
-        inp = tf.keras.Input(shape=(15, 15, 3))
+        inp = tf.keras.Input(shape=(15, 15, 3 * config["n_frames"]))
         ft = tf.keras.layers.Conv2D(4, (1, 1), activation=None)(inp)
         conv1 = tf.keras.layers.Conv2D(32, (3, 3), activation="relu", padding="same")(
             ft

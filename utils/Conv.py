@@ -4,6 +4,8 @@ import numpy as np
 import tensorflow as tf
 from tqdm.auto import tqdm
 
+from utils.Trainer import l2_loss
+
 
 def get_mask(y):
     indices_equal = tf.cast(tf.eye(tf.shape(y)[0]), tf.bool)
