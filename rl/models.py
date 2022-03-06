@@ -56,14 +56,14 @@ def get_policy_architecture(env_name, algo="PPO", head=None, tail=None, config=N
         out = tail(latent)
         model = tf.keras.Model(inputs=inp, outputs=out, name="-".join(algo))
     elif env_name == "tetris":  # the final raid boss
-        inp = tf.keras.Input(shape=(20, 10, 3))
+        inp = tf.keras.Input(shape=(20, 10, 3 * config["n_frames"]))
         if head is None:
             head = get_vision_architecture(env_name, config=config)
         latent = head(inp)
         if tail is None:
             tail = get_qlearning_architecture(env_name, algo=algo)
         out = tail(latent)
-        model = tf.keras.Model(inputs=inp, outputs=out, name="model")
+        model = tf.keras.Model(inputs=inp, outputs=out, name="-".join(algo))
     elif env_name == "Breakout-v0":
         model = tf.keras.Sequential(
             [  # suggested model for breakout from tf
@@ -173,7 +173,7 @@ def get_value_architecture(env_name):
 
 
 SNAKE_EMBED_DIM = 64
-TETRIS_EMBED_DIM = 512
+TETRIS_EMBED_DIM = 256
 
 
 def get_vision_architecture(env_name, config=None):
@@ -205,7 +205,12 @@ def get_vision_architecture(env_name, config=None):
         conv3 = tf.keras.layers.Conv2D(128, (5, 5), activation="relu", padding="same")(
             conv2
         )
-        features = tf.keras.layers.Flatten()(conv3)
+        small_features = tf.keras.layers.Flatten()(conv1)
+        medium_features = tf.keras.layers.Flatten()(conv2)
+        large_features = tf.keras.layers.Flatten()(conv3)
+        features = tf.keras.layers.concatenate(
+            [small_features, medium_features, large_features]
+        )
         fc1 = tf.keras.layers.Dense(TETRIS_EMBED_DIM, activation="relu")(features)
         model = tf.keras.Model(inputs=inp, outputs=fc1, name="vision")
 
@@ -233,9 +238,10 @@ def get_qlearning_architecture(env_name, algo=None):
     elif env_name == "tetris":
         inp = tf.keras.Input(shape=(TETRIS_EMBED_DIM,))
         if "Dueling" in algo:
-            hidden = tf.keras.layers.Dense(64, activation="elu")(inp)
-            val = tf.keras.layers.Dense(1, activation="linear")(hidden)
-            adv = tf.keras.layers.Dense(4, activation="linear")(hidden)
+            hidden = tf.keras.layers.Dense(128, activation="elu")(inp)
+            hidden2 = tf.keras.layers.Dense(32, activation="elu")(hidden)
+            val = tf.keras.layers.Dense(1, activation="linear")(hidden2)
+            adv = tf.keras.layers.Dense(7, activation="linear")(hidden2)
             avg = tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, 1))(adv)
             out = tf.keras.layers.Add()([val, adv, -avg])
         else:

@@ -115,8 +115,6 @@ class ReplayBuffer:
         if self.mode not in ("uniform", "rank", "proportional", "spr"):
             raise Exception("Invalid mode: {}".format(self.mode))
 
-        np.random.seed(1234)
-
         if self.mode in ("uniform", "spr"):
             self.queue: List[Transition] = []
         elif self.mode == "proportional":

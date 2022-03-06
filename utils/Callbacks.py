@@ -387,20 +387,29 @@ class InitBufferCallback(Callback):
     under a random policy
     """
 
-    def __init__(self, samples=1000):
+    def __init__(self, samples: int = 1000, policy: str = "random"):
         self.samples = samples
+        self.policy = policy
+
+        assert self.policy in ("random", "action_dist")
 
     def on_init(self, agent) -> None:
         if not agent.training:
             return
+        if self.policy == "random":
+            sampling_policy = lambda _: np.random.choice(agent.n_actions)
+        elif (
+            self.policy == "action_dist"
+        ):  # fall back to the agent's sampling policy distribution
+            sampling_policy = lambda _: np.random.choice(
+                agent.n_actions, p=agent.config["action_dist"]
+            )
         with tqdm(total=self.samples) as pbar:
             while agent.buffer.size() < self.samples:
                 sz = agent.buffer.size()
                 agent.collect_rollout(
                     t_max=agent.t_max,
-                    policy=(lambda x: np.random.choice(agent.n_actions))
-                    if not agent.existing
-                    else None,
+                    policy=sampling_policy if not agent.existing else None,
                     train=False,
                     display=False,
                 )

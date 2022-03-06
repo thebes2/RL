@@ -1,6 +1,15 @@
 {
 	"learning_rate": 0.00001,
 	"n_actions": 7,
+	"action_dist": [
+		0.17,
+		0.05,
+		0.17,
+		0.17,
+		0.17,
+		0.17,
+		0.1
+	],
 	"t_max": 500,
 	"train_epochs": 1000,
 	"env": "tetris",
@@ -10,6 +19,7 @@
 	"update_steps": 1,
 	"delta": 0.00001,
 	"latent_dim": 32,
+	"gamma": 0.99,
 	"algo": [
 		"DDQN",
 		"Dueling"
@@ -18,14 +28,7 @@
 		{
 			"type": "InitBufferCallback",
 			"kwargs": {
-				"episodes": 15
-			}
-		},
-		{
-			"type": "SPRPretrainCallback",
-			"kwargs": {
-				"episodes": 100,
-				"train_epochs": 4
+				"samples": 10000
 			}
 		}
 	]

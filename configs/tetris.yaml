@@ -1,0 +1,38 @@
+learning_rate: 0.00001
+n_actions: 7
+action_dist: [0.1, 0, 0.205, 0.205, 0.205, 0.205, 0.08]
+t_max: 500
+train_epochs: 1000
+env: tetris
+env_name: tetris
+multistep: 5
+update_freq: 4
+update_steps: 1
+delta: 0.00001
+target_delay: 1
+latent_dim: 32
+gamma: 0.99
+algo:
+  - DDQN
+  - Dueling
+callbacks:
+  - type: InitBufferCallback
+    kwargs:
+      samples: 10000
+      policy: action_dist
+  - type: AnnealingSchedulerCallback
+    kwargs:
+      target: epsilon
+      schedule:
+        - type: Schedule
+          kwargs:
+            length: 1000
+            start_val: 0.5
+            end_val: 0.1
+            fn: linear
+        - type: Schedule
+          kwargs:
+            length: 9000
+            start_val: 0.1
+            end_val: 0.01
+            fn: linear

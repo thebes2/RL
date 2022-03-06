@@ -199,7 +199,12 @@ class DQN_agent:
             return np.expand_dims(np.argmax(q, axis=1), 1)
         elif mode == "eps-greedy":
             if random.uniform(0, 1) < self.epsilon:
-                return np.expand_dims(np.random.choice(a, size=n), 1)
+                if "action_dist" in self.config:
+                    return np.expand_dims(
+                        np.random.choice(a, size=n, p=self.config["action_dist"]), 1
+                    )
+                else:
+                    return np.expand_dims(np.random.choice(a, size=n), 1)
             else:
                 return np.expand_dims(np.argmax(q, axis=1), 1)
         raise NotImplementedError(
@@ -489,7 +494,7 @@ class DQN_agent:
         hist = []
         for t in tqdm(range(epochs), desc="Training epochs"):
             reward = self.collect_rollout(
-                t_max=t_max, silenced=False, train=True, display=display
+                t_max=t_max, silenced=True, train=True, display=display
             )
             avg_reward += reward
             hist.append(reward)
