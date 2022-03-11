@@ -55,7 +55,7 @@ def get_policy_architecture(env_name, algo="PPO", head=None, tail=None, config=N
             tail = get_qlearning_architecture(env_name, algo=algo)
         out = tail(latent)
         model = tf.keras.Model(inputs=inp, outputs=out, name="-".join(algo))
-    elif env_name == "tetris":  # the final raid boss
+    elif env_name in ("tetris", "tetris-simple"):  # the final raid boss
         inp = tf.keras.Input(shape=(20, 10, 3 * config["n_frames"]))
         if head is None:
             head = get_vision_architecture(env_name, config=config)
@@ -173,7 +173,8 @@ def get_value_architecture(env_name):
 
 
 SNAKE_EMBED_DIM = 64
-TETRIS_EMBED_DIM = 256
+TETRIS_EMBED_DIM = 256  # 1024
+TETRIS_FEATURE_DIM = 96
 
 
 def get_vision_architecture(env_name, config=None):
@@ -193,18 +194,18 @@ def get_vision_architecture(env_name, config=None):
         fc1 = tf.keras.layers.Dense(SNAKE_EMBED_DIM, activation="relu")(features)
         model = tf.keras.Model(inputs=inp, outputs=fc1, name="vision")
 
-    elif env_name == "tetris":
+    elif env_name in ("tetris", "tetris-simple"):
         inp = tf.keras.Input(shape=(20, 10, 3))
         ft = tf.keras.layers.Conv2D(4, (1, 1), activation=None)(inp)
-        conv1 = tf.keras.layers.Conv2D(32, (3, 3), activation="relu", padding="same")(
-            ft
-        )
-        conv2 = tf.keras.layers.Conv2D(64, (3, 3), activation="relu", padding="same")(
-            conv1
-        )
-        conv3 = tf.keras.layers.Conv2D(128, (5, 5), activation="relu", padding="same")(
-            conv2
-        )
+        conv1 = tf.keras.layers.Conv2D(
+            32, (3, 3), activation="relu", padding="same"  # 64
+        )(ft)
+        conv2 = tf.keras.layers.Conv2D(
+            32, (5, 5), activation="relu", padding="same"  # 128, (5, 5)
+        )(conv1)
+        conv3 = tf.keras.layers.Conv2D(
+            32, (5, 5), activation="relu", padding="same"  # 128
+        )(conv2)
         small_features = tf.keras.layers.Flatten()(conv1)
         medium_features = tf.keras.layers.Flatten()(conv2)
         large_features = tf.keras.layers.Flatten()(conv3)
@@ -212,7 +213,15 @@ def get_vision_architecture(env_name, config=None):
             [small_features, medium_features, large_features]
         )
         fc1 = tf.keras.layers.Dense(TETRIS_EMBED_DIM, activation="relu")(features)
+        # features = tf.keras.layers.Concatenate(axis=-1)(
+        #     [conv1, conv3]
+        # )  # feature-dim = 96
         model = tf.keras.Model(inputs=inp, outputs=fc1, name="vision")
+
+    else:
+        raise AssertionError(
+            "Vision architecture for {} not specified.".format(env_name)
+        )
 
     return model
 
@@ -237,14 +246,44 @@ def get_qlearning_architecture(env_name, algo=None):
 
     elif env_name == "tetris":
         inp = tf.keras.Input(shape=(TETRIS_EMBED_DIM,))
+        # inp = tf.keras.Input(shape=(20, 10, TETRIS_FEATURE_DIM))
         if "Dueling" in algo:
-            hidden = tf.keras.layers.Dense(128, activation="elu")(inp)
-            hidden2 = tf.keras.layers.Dense(32, activation="elu")(hidden)
-            val = tf.keras.layers.Dense(1, activation="linear")(hidden2)
-            adv = tf.keras.layers.Dense(7, activation="linear")(hidden2)
+            hidden = get_normed_resblock(inp, TETRIS_EMBED_DIM, TETRIS_EMBED_DIM)
+            hidden2 = get_normed_resblock(hidden, TETRIS_EMBED_DIM, TETRIS_EMBED_DIM)
+            hidden3 = get_normed_resblock(hidden2, TETRIS_EMBED_DIM, TETRIS_EMBED_DIM)
+            hidden4 = tf.keras.layers.Dense(32, activation="relu")(
+                hidden3
+            )  # get_normed_resblock(inp, TETRIS_EMBED_DIM, TETRIS_EMBED_DIM)(hidden2)
+            # hidden = tf.keras.layers.Dense(128, activation="relu")(inp)  # 256
+            # hidden2 = tf.keras.layers.Dense(32, activation="relu")(hidden)  # 128
+            # hidden3 = tf.keras.layers.Dense(32, activation="relu")(hidden2)  # 32
+            val = tf.keras.layers.Dense(1, activation="linear")(hidden4)  # hidden3
+            adv = tf.keras.layers.Dense(7, activation="linear")(hidden4)  # hidden3
             avg = tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, 1))(adv)
             out = tf.keras.layers.Add()([val, adv, -avg])
         else:
+            raise NotImplementedError()
+            hidden = tf.keras.layers.Dense(64, activation="elu")(inp)
+            out = tf.keras.layers.Dense(
+                7, activation="softmax" if "PPO" in algo else None
+            )(hidden)
+
+        model = tf.keras.Model(inputs=inp, outputs=out, name="qlearning-head")
+
+    elif env_name == "tetris-simple":  # the mini raid boss
+        inp = tf.keras.Input(shape=(TETRIS_EMBED_DIM,))
+        # inp = tf.keras.Input(shape=(20, 10, TETRIS_FEATURE_DIM))
+        if "Dueling" in algo:
+            hidden = get_normed_resblock(inp, TETRIS_EMBED_DIM, TETRIS_EMBED_DIM)
+            hidden2 = get_normed_resblock(hidden, TETRIS_EMBED_DIM, TETRIS_EMBED_DIM)
+            # hidden3 = get_normed_resblock(hidden2, TETRIS_EMBED_DIM, TETRIS_EMBED_DIM)
+            hidden3 = tf.keras.layers.Dense(64, activation="relu")(hidden2)
+            val = tf.keras.layers.Dense(1, activation="linear")(hidden3)
+            adv = tf.keras.layers.Dense(15, activation="linear")(hidden3)
+            avg = tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, 1))(adv)
+            out = tf.keras.layers.Add()([val, adv, -avg])
+        else:
+            raise NotImplementedError()
             hidden = tf.keras.layers.Dense(64, activation="elu")(inp)
             out = tf.keras.layers.Dense(
                 7, activation="softmax" if "PPO" in algo else None
@@ -256,10 +295,13 @@ def get_qlearning_architecture(env_name, algo=None):
 
 
 def get_normed_resblock(inp, dim: int, inner_dim: int):
-    hidden = tf.keras.layers.Dense(inner_dim, activation="relu")(inp)
-    hidden2 = tf.keras.layers.Dense(dim, activation=None)(hidden)
-    raw_out = inp + hidden2
-    out = tf.keras.layers.LayerNormalization()(raw_out)
+    hidden = tf.keras.layers.Dense(inner_dim, activation=None)(inp)
+    bn1 = tf.keras.layers.BatchNormalization()(hidden)
+    out1 = tf.keras.layers.Activation("relu")(bn1)
+    hidden2 = tf.keras.layers.Dense(dim, activation=None)(out1)
+    bn2 = tf.keras.layers.BatchNormalization()(hidden2)
+    res = bn2 + inp
+    out = tf.keras.layers.Activation("relu")(res)
     return out
 
 

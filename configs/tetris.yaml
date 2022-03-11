@@ -1,11 +1,11 @@
-learning_rate: 0.00001
+learning_rate: 0.0002
 n_actions: 7
-action_dist: [0.1, 0, 0.205, 0.205, 0.205, 0.205, 0.08]
+action_dist: [0.15, 0.01, 0.205, 0.205, 0.205, 0.205, 0.02]
 t_max: 500
 train_epochs: 1000
 env: tetris
 env_name: tetris
-multistep: 5
+multistep: 50 # simplified setting-  5
 update_freq: 4
 update_steps: 1
 delta: 0.00001
@@ -18,12 +18,18 @@ algo:
 callbacks:
   - type: InitBufferCallback
     kwargs:
-      samples: 10000
+      samples: 1000
       policy: action_dist
   - type: AnnealingSchedulerCallback
     kwargs:
       target: epsilon
       schedule:
+        - type: Schedule # simplified setting
+          kwargs:
+            length: 100
+            start_val: 0.5
+            end_val: 0.01
+            fn: linear
         - type: Schedule
           kwargs:
             length: 1000

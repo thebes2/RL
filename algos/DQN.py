@@ -85,6 +85,8 @@ class DQN_agent:
         self.prioritized_sampling = "PER" in self.algo
         self.noisy_DQN = "noisy" in self.algo
 
+        self.counter = 0
+
     # the old init method for backwards compatibility
     def init(
         self,
@@ -228,7 +230,7 @@ class DQN_agent:
             return np.array(obs.astype(np.float32)[::10, ::10] / 255.0) - np.array(
                 [0.0, 1.0, 0.0]
             )
-        elif self.env_name == "tetris":
+        elif self.env_name in ("tetris", "tetris-simple"):
             return np.array(obs.astype(np.float32) / 255.0)
         elif self.env_name == "taxi":
             return np.array([obs])
@@ -355,7 +357,7 @@ class DQN_agent:
                 for _ in range(self.update_steps):
                     self.update_model_step()
 
-            if dn:
+            if dn or i + 1 == t_max:
                 # clean up incomplete transitions in the queue
                 while len(queue) > 0:
                     self.buffer.add(
@@ -410,6 +412,10 @@ class DQN_agent:
         if self.prioritized_sampling:
             losses = losses * w
         loss = tf.reduce_mean(losses)
+
+        if self.update_counter % 10 == 1:
+            # print(q_pred, y)
+            print(q_pred, r, yy)
 
         reg_loss = self.config["lambda"] * l2_loss(self.model)
         loss = loss + reg_loss
@@ -490,7 +496,7 @@ class DQN_agent:
         if t_max is None:
             t_max = self.config.get("t_max", 10000)
         avg_reward = 0.0
-        epochs_per_log = min(25, epochs / 10)
+        epochs_per_log = min(5, epochs / 10)
         hist = []
         for t in tqdm(range(epochs), desc="Training epochs"):
             reward = self.collect_rollout(
@@ -506,7 +512,11 @@ class DQN_agent:
                     logger.info(
                         "Evaluation reward: {}".format(
                             self.collect_rollout(
-                                t_max=t_max, silenced=True, train=False, eval=True
+                                t_max=t_max,
+                                silenced=True,
+                                train=False,
+                                eval=True,
+                                display=display,
                             )
                         )
                     )
@@ -519,8 +529,8 @@ class DQN_agent:
                     )
                     logger.log("Buffer size: {}".format(self.buffer.size()))
                 avg_reward = 0
-                self.save_to_checkpoint(logging, manual=True)
-                self.load_from_checkpoint(manual=True)
+                # self.save_to_checkpoint(logging, manual=True)
+                # self.load_from_checkpoint(manual=True)
 
             for callback in self.callbacks:
                 callback.on_episode_end(self)

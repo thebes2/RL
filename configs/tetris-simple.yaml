@@ -1,0 +1,34 @@
+# simplified tetris env for debugging purposes
+# action space is which column to hard drop the O block on
+# we do this to remove the difficult problem of long-term relations in tetris
+# to see if the issue is vision or planning
+learning_rate: 0.0003
+n_actions: 14
+t_max: 500
+train_epochs: 100
+env: tetris-simple
+env_name: tetris-simple
+multistep: 20
+update_freq: 4
+update_steps: 1
+delta: 0.00005
+target_delay: 1
+gamma: 0.99
+algo:
+  - DDQN
+  - Dueling
+callbacks:
+  - type: InitBufferCallback
+    kwargs:
+      samples: 2000
+      policy: random
+  - type: AnnealingSchedulerCallback
+    kwargs:
+      target: epsilon
+      schedule:
+        - type: Schedule
+          kwargs:
+            length: 200
+            start_val: 0.3
+            end_val: 0.01
+            fn: linear
