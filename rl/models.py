@@ -175,7 +175,7 @@ def get_value_architecture(env_name):
 
 
 SNAKE_EMBED_DIM = 64
-TETRIS_FEATURE_DIM = 200 + 4
+TETRIS_FEATURE_DIM = 2 * 200 + 2 * 4
 TETRIS_EMBED_DIM = TETRIS_FEATURE_DIM  # 1024
 
 
@@ -226,29 +226,37 @@ def get_vision_architecture(env_name, config=None):
         flat_columns = [
             tf.keras.layers.Flatten()(column) for column in columns
         ]  # 10 x [None x 80]
-        column_dense_layer1 = tf.keras.layers.Dense(20, activation="relu")
-        column_dense_layer2 = tf.keras.layers.Dense(20, activation="relu")
+        column_dense_layer1 = tf.keras.layers.Dense(40, activation="relu")
+        column_dense_layer2 = tf.keras.layers.Dense(40, activation="relu")
+        raw_column_outputs = [
+            tf.expand_dims(column_dense_layer2(column_dense_layer1(col)), 1)
+            for col in flat_columns
+        ]
+        # board_column_outputs = [feature[..., :20] for feature in raw_column_outputs]
+        # active_column_outputs = [feature[..., 20:] for feature in raw_column_outputs]
         column_outputs = tf.keras.layers.concatenate(
-            [
-                tf.expand_dims(column_dense_layer2(column_dense_layer1(col)), 1)
-                for col in flat_columns
-            ],
-            axis=1,
+            raw_column_outputs, axis=1
         )  # None x 10 x 20
+        # active_outputs = tf.keras.layers.concatenate(
+        #     active_column_outputs, axis=1
+        # )  # None x 10 x 20
         tensor_dict["column_outputs"] = tf.transpose(
             column_outputs, [0, 2, 1]
         )  # None x 20 x 10
+        # tensor_dict["active_outputs"] = tf.transpose(active_outputs, [0, 2, 1])
 
         # extract max height for more supervision during pretraining
-        column_compressor = tf.keras.layers.Dense(4, activation="relu")
-        row_compressor = tf.keras.layers.Dense(4, activation="relu")
-        columns = tf.unstack(tensor_dict["column_outputs"], axis=2)  # 10 x [None x 20]
+        column_compressor = tf.keras.layers.Dense(8, activation="relu")
+        row_compressor = tf.keras.layers.Dense(8, activation="relu")
+        columns = tf.unstack(tensor_dict["column_outputs"], axis=2)  # 10 x [None x 40]
         column_specific_global_features = tf.keras.layers.concatenate(
             [row_compressor(col_feature) for col_feature in columns]
         )
         tensor_dict["column_global_features"] = column_compressor(
             column_specific_global_features
         )
+
+        # track the active piece
 
         # tensor_dict["column_feat1"] = tf.keras.layers.Conv2D(
         #     16, (5, 1), padding="valid", activation="relu"
