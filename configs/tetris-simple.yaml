@@ -3,24 +3,35 @@
 # we do this to remove the difficult problem of long-term relations in tetris
 # to see if the issue is vision or planning
 learning_rate: 0.0003
-n_actions: 14
+log_interval: 5
+n_frames: 1
+n_actions: 13
 t_max: 500
+batch_size: 512
 train_epochs: 100
 env: tetris-simple
 env_name: tetris-simple
-multistep: 20
+multistep: 10
 update_freq: 4
 update_steps: 1
-delta: 0.00005
-target_delay: 1
+alpha: 0.75
+beta: 0.5
+delta: 0.00003
+target_delay: 1 # 1000
 gamma: 0.99
 algo:
   - DDQN
   - Dueling
+  # - PER
 callbacks:
+  - type: TetrisPretrainCallback
+    kwargs:
+      samples: 10000
+      train_epochs: 20
+      learning_rate: 3.e-3
   - type: InitBufferCallback
     kwargs:
-      samples: 2000
+      samples: 10000
       policy: random
   - type: AnnealingSchedulerCallback
     kwargs:
@@ -29,6 +40,12 @@ callbacks:
         - type: Schedule
           kwargs:
             length: 200
-            start_val: 0.3
+            start_val: 0.4
+            end_val: 0.1
+            fn: linear
+        - type: Schedule
+          kwargs:
+            length: 1000
+            start_val: 0.1
             end_val: 0.01
             fn: linear

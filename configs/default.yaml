@@ -1,4 +1,5 @@
 use_raw_env: false
+log_interval: 25
 learning_rate: 0.001
 minibatch_size: 50
 batch_size: 64

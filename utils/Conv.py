@@ -4,8 +4,6 @@ import numpy as np
 import tensorflow as tf
 from tqdm.auto import tqdm
 
-from utils.Trainer import l2_loss
-
 
 def get_mask(y):
     indices_equal = tf.cast(tf.eye(tf.shape(y)[0]), tf.bool)
@@ -31,7 +29,27 @@ def am_softmax_loss(x, y, scale=20.0):
     return loss
 
 
-class Gen(tf.keras.utils.Sequence):
+class Generator(tf.keras.utils.Sequence):
+    def __init__(self, data, batch_size=64):
+        self.data = data
+        self.batch_size = batch_size
+        self.on_epoch_end()
+
+    def __len__(self):
+        return len(self.data) // self.batch_size
+
+    def on_epoch_end(self):
+        random.shuffle(self.data)
+
+    def __getitem__(self, idx):
+        samples = self.data[idx * self.batch_size : (idx + 1) * self.batch_size]
+        # unpack samples
+        inputs = tf.stack([sample[0] for sample in samples], axis=0)
+        targets = tf.stack([sample[1] for sample in samples], axis=0)
+        return inputs, targets
+
+
+class ContrastiveGen(tf.keras.utils.Sequence):
     def __init__(self, data, batch_size=128):
         self.data = data
         self.batch_size = batch_size // 2
@@ -62,29 +80,36 @@ class ConvHead:
     as well.
     """
 
-    def __init__(self, architecture, data, lr=3e-4):
+    def __init__(
+        self, architecture, data, loss_fn=am_softmax_loss, lr=3e-4, contrastive=True
+    ):
         self.model = architecture
-        self.gen = Gen(data)
+        self.gen = ContrastiveGen(data) if contrastive else Generator(data)
+        self.loss_fn = loss_fn
 
         self.optimizer = tf.optimizers.Adam(lr)
+        self.counter = 0
 
     def train_step(self, x, y):
+        self.counter += 1
         with tf.GradientTape() as tape:
             embed = self.model(x)
-            loss = am_softmax_loss(embed, y)
+            if False:  # self.counter % 1000 == 0:
+                print(embed, y)
+            loss = self.loss_fn(embed, y)
 
         grads = tape.gradient(loss, self.model.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
         return loss
 
     def train(self, n_epochs=5):
-        self.model.compile(optimizer=self.optimizer, loss=am_softmax_loss)
+        self.model.compile(optimizer=self.optimizer)
 
         for t in range(n_epochs):
             avg = 0
             for x, y in tqdm(self.gen):
                 avg += self.train_step(x, y)
-            # print("[{}] Loss: {}".format(t, avg/self.gen.__len__()))
+            print("[{}] Loss: {}".format(t, avg / self.gen.__len__()))
             self.gen.on_epoch_end()
 
         # self.model.fit_generator(

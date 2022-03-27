@@ -5,6 +5,7 @@ import tensorflow as tf
 from tqdm.auto import tqdm
 
 from rl.models import (
+    get_normed_resblock,
     get_policy_architecture,
     get_prediction_architecture,
     get_projection_architecture,
@@ -377,6 +378,109 @@ class SPRPretrainCallback(Callback):
 
         agent.set_model(
             get_policy_architecture(agent.raw_env_name, agent.algo, head=vision)
+        )
+
+
+class TetrisPretrainCallback(Callback):
+
+    """
+    SSL for Tetris vision head
+    """
+
+    def __init__(
+        self,
+        samples=100,
+        train_epochs=5,
+        embed_dim=16,
+        learning_rate=3e-4,
+        batch_size=64,
+        policy="random",
+    ):
+        super(TetrisPretrainCallback, self).__init__()
+        self.samples = samples
+        self.train_epochs = train_epochs
+        self.embed_dim = embed_dim
+        self.learning_rate = learning_rate
+        self.batch_size = batch_size
+        if policy not in ("random", "greedy", "eps-greedy"):
+            raise NotImplementedError("Invalid policy " + policy)
+        self.policy = policy
+
+    def on_init(self, agent):
+        # currently we will pretrain by predicting max column heights
+        # TODO: add predicting piece position, rotation, etc. later
+        # also predicting rewards between timesteps
+        if agent.existing or not agent.training:
+            return
+        head = get_vision_architecture(agent.raw_env_name)
+        downscale = tf.keras.layers.Dense(128, activation=None)(head.output)
+        # res1 = get_normed_resblock(downscale, 128, 256)
+        # res2 = get_normed_resblock(res1, 128, 256)
+        # res3 = get_normed_resblock(res2, 128, 256)
+        # res4 = get_normed_resblock(res3, 128, 256)
+        # res5 = get_normed_resblock(res4, 128, 256)
+        # res6 = get_normed_resblock(res5, 128, 256)
+        out = tf.keras.layers.Dense(10, activation=None)(head.output)
+        model = tf.keras.Model(inputs=head.input, outputs=out)
+
+        p_buf = []
+
+        def collect_rollout(env, t_max, policy):
+            s = agent.preprocess(env.reset())
+            for _ in range(t_max):
+                act = policy(s)
+                ss, r, dn, info = env.step(agent.action_wrapper(act))
+                ss = agent.preprocess(ss)
+                target = (
+                    info["column_heights"]
+                    # + [info["max_column_height"]]
+                    # + list(info["position"])
+                )
+                p_buf.append([s, target])
+                s = ss
+                if dn:
+                    break
+
+        if self.policy == "random":
+
+            def policy(_):
+                return np.random.choice(agent.n_actions)
+
+        elif self.policy == "eps-greedy":
+
+            def policy(x):
+                return agent.get_action(x)
+
+        elif self.policy == "greedy":
+
+            def policy(x):
+                return agent.get_action(x, mode="greedy")
+
+        with tqdm(total=self.samples) as pbar:
+            while len(p_buf) < self.samples:
+                sz = len(p_buf)
+                collect_rollout(
+                    agent.env,
+                    t_max=agent.t_max,
+                    policy=policy,
+                )
+                pbar.update(len(p_buf) - sz)
+
+        def compute_loss(pred, gt):
+            assert pred.shape == gt.shape
+            return tf.reduce_mean(tf.square(pred - tf.cast(gt, tf.float32)))
+
+        trainer = ConvHead(
+            model, p_buf, compute_loss, lr=self.learning_rate, contrastive=False
+        )
+        trainer.train(self.train_epochs)
+
+        features = trainer.model.layers[-2].output
+        trained_model = tf.keras.Model(inputs=trainer.model.input, outputs=features)
+        agent.set_model(
+            get_policy_architecture(
+                agent.raw_env_name, agent.algo, head=trained_model, config=agent.config
+            )
         )
 
 

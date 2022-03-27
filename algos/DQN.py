@@ -311,6 +311,10 @@ class DQN_agent:
         g = 1.0
         rt = 0
         queue = []
+
+        # tetris-specific hack
+        cleared = 0
+
         state_queue = [obs]
         obs = self.pad_history(tf.concat(state_queue, axis=-1))
         if self.noisy_DQN or eval:
@@ -324,6 +328,7 @@ class DQN_agent:
                 else policy(obs)
             )
             oo, rr, dn, info = self.env.step(self.action_wrapper(act))
+            cleared += info["lines_cleared"]
             if display:
                 self.env.render()
             rt += g * rr
@@ -376,6 +381,7 @@ class DQN_agent:
             i += 1
         if silenced:
             self.attach_stdout()
+        print("CLEARED: ", cleared)
         return reward
 
     def discount_rewards(self, r):
@@ -409,13 +415,16 @@ class DQN_agent:
         q_pred = tf.reduce_sum(tf.multiply(preds, a), axis=1)
         delta = q_pred - y
         losses = tf.square(delta)
+
+        if self.update_counter % 10 == 1:
+            # print(tf.reduce_mean(losses))
+            # print(q_pred, y)
+            print(q_pred, y, r, yy)
+            pass
+
         if self.prioritized_sampling:
             losses = losses * w
         loss = tf.reduce_mean(losses)
-
-        if self.update_counter % 10 == 1:
-            # print(q_pred, y)
-            print(q_pred, r, yy)
 
         reg_loss = self.config["lambda"] * l2_loss(self.model)
         loss = loss + reg_loss
@@ -458,10 +467,17 @@ class DQN_agent:
                     ss,
                 )
             model_grads = tape.gradient(model_loss, self.model.trainable_variables)
-            clipped_grads = [tf.clip_by_value(grad, -1.0, 1.0) for grad in model_grads]
+            clipped_grads = model_grads
+            # clipped_grads = [tf.clip_by_value(grad, -1.0, 1.0) for grad in model_grads]
             self.optimizer.apply_gradients(
                 zip(clipped_grads, self.model.trainable_variables)
             )
+
+        if self.update_counter % 10 == 0:
+            print(clipped_grads)
+            pass
+            # for grad in clipped_grads:
+            #     print(tf.reduce_mean(tf.abs(grad)), tf.math.reduce_std(grad))
 
         for callback in self.callbacks:
             callback.on_train_step_end(self)
@@ -487,7 +503,9 @@ class DQN_agent:
             self.update_model_step()
         self.update_target_step()
 
-    def train(self, epochs=None, t_max=None, logging=True, display=False):
+    def train(
+        self, epochs=None, t_max=None, silenced=True, logging=True, display=False
+    ):
         if self.update_counter == 0:  # hack to call init if not done so already
             for callback in self.callbacks:
                 callback.on_init(self)
@@ -496,11 +514,11 @@ class DQN_agent:
         if t_max is None:
             t_max = self.config.get("t_max", 10000)
         avg_reward = 0.0
-        epochs_per_log = min(5, epochs / 10)
+        epochs_per_log = min(self.config["log_interval"], epochs / 10)
         hist = []
         for t in tqdm(range(epochs), desc="Training epochs"):
             reward = self.collect_rollout(
-                t_max=t_max, silenced=True, train=True, display=display
+                t_max=t_max, silenced=silenced, train=True, display=display
             )
             avg_reward += reward
             hist.append(reward)
