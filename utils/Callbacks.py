@@ -420,7 +420,7 @@ class TetrisPretrainCallback(Callback):
         # res4 = get_normed_resblock(res3, 128, 256)
         # res5 = get_normed_resblock(res4, 128, 256)
         # res6 = get_normed_resblock(res5, 128, 256)
-        out = tf.keras.layers.Dense(10, activation=None)(head.output)
+        out = tf.keras.layers.Dense(11, activation=None)(head.output)
         model = tf.keras.Model(inputs=head.input, outputs=out)
 
         p_buf = []
@@ -433,7 +433,7 @@ class TetrisPretrainCallback(Callback):
                 ss = agent.preprocess(ss)
                 target = (
                     info["column_heights"]
-                    # + [info["max_column_height"]]
+                    + [info["max_column_height"]]
                     # + list(info["position"])
                 )
                 p_buf.append([s, target])

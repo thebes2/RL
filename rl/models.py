@@ -175,7 +175,7 @@ def get_value_architecture(env_name):
 
 
 SNAKE_EMBED_DIM = 64
-TETRIS_FEATURE_DIM = 200
+TETRIS_FEATURE_DIM = 200 + 4
 TETRIS_EMBED_DIM = TETRIS_FEATURE_DIM  # 1024
 
 
@@ -198,7 +198,10 @@ def get_vision_architecture(env_name, config=None):
 
     elif env_name == "tetris-simple":  # hack
 
-        output_features = ["column_outputs"]  # which tensors to include in output
+        output_features = [
+            "column_outputs",
+            "column_global_features",
+        ]  # which tensors to include in output
         concat = True  # flatten and concatenate features
         downscale = False  # downscale output feature vector to fixed dimension
 
@@ -216,7 +219,6 @@ def get_vision_architecture(env_name, config=None):
         )(tensor_dict["transformed_input"])
 
         # extract column features
-        # TODO: we will focus solely on column features for now
         compact_columns = tf.keras.layers.Conv2D(4, (1, 1), activation=None)(
             tensor_dict["conv1"]
         )
@@ -227,9 +229,26 @@ def get_vision_architecture(env_name, config=None):
         column_dense_layer1 = tf.keras.layers.Dense(20, activation="relu")
         column_dense_layer2 = tf.keras.layers.Dense(20, activation="relu")
         column_outputs = tf.keras.layers.concatenate(
-            [column_dense_layer2(column_dense_layer1(col)) for col in flat_columns]
+            [
+                tf.expand_dims(column_dense_layer2(column_dense_layer1(col)), 1)
+                for col in flat_columns
+            ],
+            axis=1,
+        )  # None x 10 x 20
+        tensor_dict["column_outputs"] = tf.transpose(
+            column_outputs, [0, 2, 1]
+        )  # None x 20 x 10
+
+        # extract max height for more supervision during pretraining
+        column_compressor = tf.keras.layers.Dense(4, activation="relu")
+        row_compressor = tf.keras.layers.Dense(4, activation="relu")
+        columns = tf.unstack(tensor_dict["column_outputs"], axis=2)  # 10 x [None x 20]
+        column_specific_global_features = tf.keras.layers.concatenate(
+            [row_compressor(col_feature) for col_feature in columns]
         )
-        tensor_dict["column_outputs"] = column_outputs
+        tensor_dict["column_global_features"] = column_compressor(
+            column_specific_global_features
+        )
 
         # tensor_dict["column_feat1"] = tf.keras.layers.Conv2D(
         #     16, (5, 1), padding="valid", activation="relu"
