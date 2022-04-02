@@ -77,7 +77,7 @@ class DQN_agent:
         self.ckpt_manager = tf.train.CheckpointManager(
             self.ckpt, directory=self.ckpt_dir, max_to_keep=5
         )
-        self.load_from_checkpoint(manual=True)
+        self.load_from_checkpoint(manual=False)
 
         self.update_counter = 0
 
@@ -496,7 +496,7 @@ class DQN_agent:
         if t_max is None:
             t_max = self.config.get("t_max", 10000)
         avg_reward = 0.0
-        epochs_per_log = min(5, epochs / 10)
+        epochs_per_log = self.config.get("log_interval", min(25, epochs / 10))
         hist = []
         for t in tqdm(range(epochs), desc="Training epochs"):
             reward = self.collect_rollout(
@@ -529,8 +529,8 @@ class DQN_agent:
                     )
                     logger.log("Buffer size: {}".format(self.buffer.size()))
                 avg_reward = 0
-                # self.save_to_checkpoint(logging, manual=True)
-                # self.load_from_checkpoint(manual=True)
+                self.save_to_checkpoint(logging, manual=False)
+                self.load_from_checkpoint(manual=False)
 
             for callback in self.callbacks:
                 callback.on_episode_end(self)

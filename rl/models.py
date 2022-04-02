@@ -1,5 +1,7 @@
 import tensorflow as tf
 
+from rl.layers import apply_dense_along_axis, get_normed_resblock
+
 
 def get_policy_architecture(env_name, algo="PPO", head=None, tail=None, config=None):
     if env_name == "CartPole-v0":
@@ -185,14 +187,29 @@ def get_vision_architecture(env_name, config=None):
         conv1 = tf.keras.layers.Conv2D(32, (3, 3), activation="relu", padding="same")(
             ft
         )
+        mp_col1 = apply_dense_along_axis(conv1, 2, 15, 32, residual=True)
+        mp_row1 = apply_dense_along_axis(mp_col1, 1, 15, 32, residual=True)
         conv2 = tf.keras.layers.Conv2D(64, (5, 5), activation="relu", padding="same")(
-            conv1
+            mp_row1
         )
         local_features = tf.keras.layers.Flatten()(conv1)
         large_features = tf.keras.layers.Flatten()(conv2)
         features = tf.keras.layers.concatenate([local_features, large_features])
         fc1 = tf.keras.layers.Dense(SNAKE_EMBED_DIM, activation="relu")(features)
         model = tf.keras.Model(inputs=inp, outputs=fc1, name="vision")
+        # inp = tf.keras.Input(shape=(15, 15, 3 * config["n_frames"]))
+        # ft = tf.keras.layers.Conv2D(4, (1, 1), activation=None)(inp)
+        # conv1 = tf.keras.layers.Conv2D(32, (3, 3), activation="relu", padding="same")(
+        #     ft
+        # )
+        # conv2 = tf.keras.layers.Conv2D(64, (5, 5), activation="relu", padding="same")(
+        #     conv1
+        # )
+        # local_features = tf.keras.layers.Flatten()(conv1)
+        # large_features = tf.keras.layers.Flatten()(conv2)
+        # features = tf.keras.layers.concatenate([local_features, large_features])
+        # fc1 = tf.keras.layers.Dense(SNAKE_EMBED_DIM, activation="relu")(features)
+        # model = tf.keras.Model(inputs=inp, outputs=fc1, name="vision")
 
     elif env_name in ("tetris", "tetris-simple"):
         inp = tf.keras.Input(shape=(20, 10, 3))
@@ -292,17 +309,6 @@ def get_qlearning_architecture(env_name, algo=None):
         model = tf.keras.Model(inputs=inp, outputs=out, name="qlearning-head")
 
     return model
-
-
-def get_normed_resblock(inp, dim: int, inner_dim: int):
-    hidden = tf.keras.layers.Dense(inner_dim, activation=None)(inp)
-    bn1 = tf.keras.layers.BatchNormalization()(hidden)
-    out1 = tf.keras.layers.Activation("relu")(bn1)
-    hidden2 = tf.keras.layers.Dense(dim, activation=None)(out1)
-    bn2 = tf.keras.layers.BatchNormalization()(hidden2)
-    res = bn2 + inp
-    out = tf.keras.layers.Activation("relu")(res)
-    return out
 
 
 def get_transition_architecture(env_name, algo=None, cfg={}):
