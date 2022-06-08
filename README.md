@@ -2,6 +2,10 @@
 
 A collection of RL algorithms.
 
+### Existing models
+
+See `model_zoo` for pretrained models on various environments.
+
 ### Running a model
 
 For running a general model:

@@ -1,4 +1,6 @@
 import os
+import subprocess
+import tempfile
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -80,3 +82,37 @@ def plot_runs(*args):
 def draw_matrix(mat):
     img = Image.fromarray(mat, "RGB")
     img.show()
+
+
+def generate_video_from_rollout(agent, env, t_max=10000):
+    # only works for matplotlib based displays
+    with tempfile.TemporaryDirectory() as tmp:
+        obs = agent.preprocess(env.reset())
+        for i in range(t_max):
+            a = agent.get_action(obs, mode="greedy")[0][0]
+            obs, r, dn, info = env.step(agent.action_wrapper(a))
+            obs = agent.preprocess(obs)
+            env.render()
+            plt.savefig(os.path.join(tmp, "frame-{}.png".format(i)))
+            if dn:
+                break
+
+        cur = os.getcwd()
+        os.chdir(tmp)
+        subprocess.call(
+            [
+                "ffmpeg",
+                "-framerate",
+                "8",
+                "-i",
+                "frame-%d.png",
+                "-r",
+                "30",
+                "-pix_fmt",
+                "yuv420p",
+                "export.mp4",
+            ]
+        )
+
+        os.rename(os.path.join(tmp, "export.mp4"), os.path.join(cur, "export.mp4"))
+        os.chdir(cur)
