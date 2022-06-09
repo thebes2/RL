@@ -19,9 +19,6 @@ if __name__ == "__main__":
         and os.environ["CUDA_VISIBLE_DEVICES"] != "-1"
     ):
         print("Using gpu")
-        import tensorflow as tf
-
-        print("Num GPUs Available: ", len(tf.config.list_physical_devices("GPU")))
 
     agent = load(args.run_name, args.env, override=args.override)
     agent.train()
